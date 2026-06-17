@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { resetGlobalLoading, setGlobalLoading, subscribeGlobalLoading } from "@/lib/loading-store";
 
 function shouldIgnoreHref(href: string) {
@@ -28,6 +28,8 @@ function LoadingText() {
 
 export function RouteLoadingOverlay() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const [visible, setVisible] = React.useState(false);
   const showTimerRef = React.useRef<number | null>(null);
 
@@ -41,7 +43,7 @@ export function RouteLoadingOverlay() {
   React.useEffect(() => {
     resetGlobalLoading();
     clearShowTimer();
-  }, [pathname, clearShowTimer]);
+  }, [pathname, searchKey, clearShowTimer]);
 
   React.useEffect(() => {
     const onClickCapture = (e: MouseEvent) => {
