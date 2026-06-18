@@ -12,6 +12,25 @@ export interface ReportDateRange {
   dateTo: string;
 }
 
+export interface ReportFilters {
+  contact_name?: string;
+  contact_email?: string;
+  owner_id?: string;
+  category_id?: string;
+  department_id?: string;
+}
+
+export function hasTicketFilters(filters?: ReportFilters): boolean {
+  if (!filters) return false;
+  return Boolean(
+    filters.contact_name ||
+      filters.contact_email ||
+      filters.owner_id ||
+      filters.category_id ||
+      filters.department_id
+  );
+}
+
 export interface ReportColumn {
   key: string;
   label: string;

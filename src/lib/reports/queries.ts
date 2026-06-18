@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { ReportDateRange, ReportResult, ReportType } from "./types";
+import type { ReportDateRange, ReportFilters, ReportResult, ReportType } from "./types";
+import { hasTicketFilters } from "./types";
 
 const HR_ROLES = ["administrator", "hr_manager", "hr_agent"];
 
@@ -12,6 +13,39 @@ const TICKET_LIST_SELECT = `
 `;
 
 type NestedRecord = Record<string, unknown>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyTicketFilters(query: any, filters?: ReportFilters) {
+  if (!filters) return query;
+
+  let next = query;
+  if (filters.contact_name) {
+    next = next.ilike("contact_name", `%${filters.contact_name}%`);
+  }
+  if (filters.contact_email) {
+    next = next.ilike("contact_email", `%${filters.contact_email}%`);
+  }
+  if (filters.owner_id) {
+    next = next.eq("owner_id", filters.owner_id);
+  }
+  if (filters.category_id) {
+    next = next.eq("category_id", filters.category_id);
+  }
+  if (filters.department_id) {
+    next = next.eq("department_id", filters.department_id);
+  }
+  return next;
+}
+
+async function getFilteredTicketIds(filters?: ReportFilters): Promise<string[] | null> {
+  if (!hasTicketFilters(filters)) return null;
+
+  const supabase = await createClient();
+  let query = supabase.from("tickets").select("id");
+  query = applyTicketFilters(query, filters);
+  const { data } = await query;
+  return (data || []).map((row) => row.id);
+}
 
 function nestedName(value: unknown): string {
   if (!value || typeof value !== "object") return "—";
@@ -86,14 +120,18 @@ const TICKET_COLUMNS = [
   { key: "closed_at", label: "Closed" },
 ];
 
-async function getTicketsCreatedReport(dateRange: ReportDateRange): Promise<ReportResult> {
+async function getTicketsCreatedReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
     .gte("created_at", dateRange.dateFrom)
-    .lte("created_at", `${dateRange.dateTo}T23:59:59.999Z`)
-    .order("created_at", { ascending: false });
+    .lte("created_at", `${dateRange.dateTo}T23:59:59.999Z`);
+  query = applyTicketFilters(query, filters);
+  const { data } = await query.order("created_at", { ascending: false });
 
   return {
     columns: TICKET_COLUMNS,
@@ -101,15 +139,19 @@ async function getTicketsCreatedReport(dateRange: ReportDateRange): Promise<Repo
   };
 }
 
-async function getTicketsClosedReport(dateRange: ReportDateRange): Promise<ReportResult> {
+async function getTicketsClosedReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
     .eq("status", "closed")
     .gte("closed_at", dateRange.dateFrom)
-    .lte("closed_at", `${dateRange.dateTo}T23:59:59.999Z`)
-    .order("closed_at", { ascending: false });
+    .lte("closed_at", `${dateRange.dateTo}T23:59:59.999Z`);
+  query = applyTicketFilters(query, filters);
+  const { data } = await query.order("closed_at", { ascending: false });
 
   return {
     columns: [
@@ -120,13 +162,14 @@ async function getTicketsClosedReport(dateRange: ReportDateRange): Promise<Repor
   };
 }
 
-async function getOpenTicketsReport(): Promise<ReportResult> {
+async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
-    .in("status", ["open", "in_progress", "on_hold", "reopened"])
-    .order("created_at", { ascending: false });
+    .in("status", ["open", "in_progress", "on_hold", "reopened"]);
+  query = applyTicketFilters(query, filters);
+  const { data } = await query.order("created_at", { ascending: false });
 
   return {
     columns: TICKET_COLUMNS,
@@ -134,14 +177,15 @@ async function getOpenTicketsReport(): Promise<ReportResult> {
   };
 }
 
-async function getOverdueTicketsReport(): Promise<ReportResult> {
+async function getOverdueTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
     .lt("due_date", new Date().toISOString())
-    .not("status", "eq", "closed")
-    .order("due_date", { ascending: true });
+    .not("status", "eq", "closed");
+  query = applyTicketFilters(query, filters);
+  const { data } = await query.order("due_date", { ascending: true });
 
   return {
     columns: [
@@ -152,15 +196,19 @@ async function getOverdueTicketsReport(): Promise<ReportResult> {
   };
 }
 
-async function getAvgResolutionTimeReport(dateRange: ReportDateRange): Promise<ReportResult> {
+async function getAvgResolutionTimeReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
     .eq("status", "closed")
     .gte("closed_at", dateRange.dateFrom)
-    .lte("closed_at", `${dateRange.dateTo}T23:59:59.999Z`)
-    .order("closed_at", { ascending: false });
+    .lte("closed_at", `${dateRange.dateTo}T23:59:59.999Z`);
+  query = applyTicketFilters(query, filters);
+  const { data } = await query.order("closed_at", { ascending: false });
 
   const rows = (data || []).map((row) => mapTicketRow(row as NestedRecord));
   const hours = rows
@@ -185,7 +233,10 @@ async function getAvgResolutionTimeReport(dateRange: ReportDateRange): Promise<R
   };
 }
 
-async function getTimeLoggedByHRReport(dateRange: ReportDateRange): Promise<ReportResult> {
+async function getTimeLoggedByHRReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await createClient();
   const { data: hrUsers } = await supabase
     .from("profiles")
@@ -208,7 +259,27 @@ async function getTimeLoggedByHRReport(dateRange: ReportDateRange): Promise<Repo
     };
   }
 
-  const { data } = await supabase
+  const ticketIds = await getFilteredTicketIds(filters);
+  if (ticketIds && ticketIds.length === 0) {
+    return {
+      columns: [
+        { key: "user", label: "HR User" },
+        { key: "ticket_number", label: "Ticket ID" },
+        { key: "ticket_subject", label: "Ticket Subject" },
+        { key: "log_date", label: "Log Date" },
+        { key: "time_spent_minutes", label: "Time (min)" },
+        { key: "time_spent_hours", label: "Time (hrs)" },
+        { key: "description", label: "Description" },
+      ],
+      rows: [],
+      summary: {
+        total_entries: 0,
+        total_hours: 0,
+      },
+    };
+  }
+
+  let query = supabase
     .from("time_logs")
     .select(`
       log_date, time_spent_minutes, description,
@@ -217,8 +288,11 @@ async function getTimeLoggedByHRReport(dateRange: ReportDateRange): Promise<Repo
     `)
     .in("user_id", hrUserIds)
     .gte("log_date", dateRange.dateFrom)
-    .lte("log_date", dateRange.dateTo)
-    .order("log_date", { ascending: false });
+    .lte("log_date", dateRange.dateTo);
+  if (ticketIds) {
+    query = query.in("ticket_id", ticketIds);
+  }
+  const { data } = await query.order("log_date", { ascending: false });
 
   const rows = (data || []).map((row) => {
     const minutes = Number(row.time_spent_minutes) || 0;
@@ -258,13 +332,18 @@ async function getTimeLoggedByHRReport(dateRange: ReportDateRange): Promise<Repo
   };
 }
 
-async function getCategoryAnalysisReport(dateRange: ReportDateRange): Promise<ReportResult> {
+async function getCategoryAnalysisReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("tickets")
     .select("status, due_date, category:categories(name)")
     .gte("created_at", dateRange.dateFrom)
     .lte("created_at", `${dateRange.dateTo}T23:59:59.999Z`);
+  query = applyTicketFilters(query, filters);
+  const { data } = await query;
 
   const now = new Date();
   const categoryMap: Record<
@@ -312,23 +391,24 @@ async function getCategoryAnalysisReport(dateRange: ReportDateRange): Promise<Re
 
 export async function getFixedReport(
   reportType: ReportType,
-  dateRange?: ReportDateRange
+  dateRange?: ReportDateRange,
+  filters?: ReportFilters
 ): Promise<ReportResult> {
   switch (reportType) {
     case "tickets-created":
-      return getTicketsCreatedReport(dateRange!);
+      return getTicketsCreatedReport(dateRange!, filters);
     case "tickets-closed":
-      return getTicketsClosedReport(dateRange!);
+      return getTicketsClosedReport(dateRange!, filters);
     case "open-tickets":
-      return getOpenTicketsReport();
+      return getOpenTicketsReport(filters);
     case "overdue-tickets":
-      return getOverdueTicketsReport();
+      return getOverdueTicketsReport(filters);
     case "avg-resolution-time":
-      return getAvgResolutionTimeReport(dateRange!);
+      return getAvgResolutionTimeReport(dateRange!, filters);
     case "time-logged-hr":
-      return getTimeLoggedByHRReport(dateRange!);
+      return getTimeLoggedByHRReport(dateRange!, filters);
     case "category-analysis":
-      return getCategoryAnalysisReport(dateRange!);
+      return getCategoryAnalysisReport(dateRange!, filters);
     default:
       return { columns: [], rows: [] };
   }
