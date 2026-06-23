@@ -177,24 +177,109 @@ export async function getHRAgents() {
   return data || [];
 }
 
+const DEPARTMENT_SELECT_WITH_CREATOR =
+  "*, associate_agent:profiles!associate_agent_id(id, full_name, email), created_by_profile:profiles!created_by(id, full_name)";
+
+const DEPARTMENT_SELECT_BASE =
+  "*, associate_agent:profiles!associate_agent_id(id, full_name, email)";
+
 export async function getDepartments() {
   const supabase = await createClient();
-  const { data } = await supabase
+  const withCreator = await supabase
     .from("departments")
-    .select("*")
+    .select(DEPARTMENT_SELECT_WITH_CREATOR)
+    .eq("is_active", true)
+    .order("name");
+
+  if (!withCreator.error) return withCreator.data || [];
+
+  const fallback = await supabase
+    .from("departments")
+    .select(DEPARTMENT_SELECT_BASE)
+    .eq("is_active", true)
+    .order("name");
+  return fallback.data || [];
+}
+
+export async function getDepartmentById(id: string) {
+  const supabase = await createClient();
+  const withCreator = await supabase
+    .from("departments")
+    .select(DEPARTMENT_SELECT_WITH_CREATOR)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!withCreator.error) return withCreator.data;
+
+  const fallback = await supabase
+    .from("departments")
+    .select(DEPARTMENT_SELECT_BASE)
+    .eq("id", id)
+    .maybeSingle();
+  return fallback.data;
+}
+
+export async function getDepartmentMembers(departmentId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, role, status")
+    .eq("department_id", departmentId)
+    .eq("status", "active")
+    .order("full_name");
+  return data || [];
+}
+
+export async function getCategoriesByDepartment(departmentId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("categories")
+    .select("id, name, description, is_active")
+    .eq("department_id", departmentId)
     .eq("is_active", true)
     .order("name");
   return data || [];
 }
 
+const CATEGORY_SELECT_WITH_CREATOR =
+  "*, subcategories(*), department:departments(id, name), created_by_profile:profiles!created_by(id, full_name)";
+
+const CATEGORY_SELECT_BASE =
+  "*, subcategories(*), department:departments(id, name)";
+
 export async function getCategories() {
   const supabase = await createClient();
-  const { data } = await supabase
+  const withCreator = await supabase
     .from("categories")
-    .select("*, subcategories(*), department:departments(id, name)")
+    .select(CATEGORY_SELECT_WITH_CREATOR)
     .eq("is_active", true)
     .order("name");
-  return data || [];
+
+  if (!withCreator.error) return withCreator.data || [];
+
+  const fallback = await supabase
+    .from("categories")
+    .select(CATEGORY_SELECT_BASE)
+    .eq("is_active", true)
+    .order("name");
+  return fallback.data || [];
+}
+
+export async function getAllCategoriesForSettings() {
+  const supabase = await createClient();
+  const selectWithCounts = `${CATEGORY_SELECT_WITH_CREATOR}, tickets(count)`;
+  const withCreator = await supabase
+    .from("categories")
+    .select(selectWithCounts)
+    .order("name");
+
+  if (!withCreator.error) return withCreator.data || [];
+
+  const fallback = await supabase
+    .from("categories")
+    .select(`${CATEGORY_SELECT_BASE}, tickets(count)`)
+    .order("name");
+  return fallback.data || [];
 }
 
 export async function getContacts(search?: string) {
@@ -211,9 +296,32 @@ export async function getUsers() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("*, department:departments(id, name)")
+    .select("*, department:departments!department_id(id, name)")
     .order("full_name");
   return data || [];
+}
+
+export async function getUserById(id: string) {
+  noStore();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("*, department:departments!department_id(id, name)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  let lastLogin: string | null = null;
+  try {
+    const admin = createServiceClient();
+    const { data: authData } = await admin.auth.admin.getUserById(id);
+    lastLogin = authData.user?.last_sign_in_at ?? null;
+  } catch {
+    lastLogin = null;
+  }
+
+  return { ...data, last_login_at: lastLogin };
 }
 
 export async function getNotifications(userId: string, limit = 20) {
@@ -234,6 +342,53 @@ export async function getRolePermissionsMatrix() {
     .select("*, module:modules(id, name, slug)")
     .order("role");
   return data || [];
+}
+
+export async function getRolePermissionsByRole(role: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("role_permissions")
+    .select("*, module:modules(id, name, slug, description)")
+    .eq("role", role)
+    .order("module(name)");
+  return data || [];
+}
+
+export async function getRoleReportSectionsByRole(role: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("role_report_sections")
+    .select("*")
+    .eq("role", role)
+    .order("section_id");
+  return data || [];
+}
+
+export async function getVisibleReportSectionsForRole(role: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("role_report_sections")
+    .select("section_id")
+    .eq("role", role)
+    .eq("can_view", true);
+
+  if (!data || data.length === 0) {
+    const { ALL_REPORT_SECTIONS } = await import("@/lib/reports/sections");
+    return ALL_REPORT_SECTIONS.map((section) => section.id);
+  }
+
+  return data.map((row) => row.section_id);
+}
+
+export async function getRoleByKey(role: string): Promise<RoleDefinition | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("app_roles")
+    .select("role, label, is_system, is_active")
+    .eq("role", role)
+    .eq("is_active", true)
+    .maybeSingle();
+  return (data as RoleDefinition) || null;
 }
 
 export async function getRoles(): Promise<RoleDefinition[]> {
@@ -286,11 +441,33 @@ export async function getSubcategories() {
   return data || [];
 }
 
+const SUBCATEGORY_SELECT_WITH_CREATOR =
+  "*, category:categories(id, name), created_by_profile:profiles!created_by(id, full_name), tickets(count)";
+
+const SUBCATEGORY_SELECT_BASE =
+  "*, category:categories(id, name), tickets(count)";
+
+export async function getAllSubcategoriesForSettings() {
+  const supabase = await createClient();
+  const withCreator = await supabase
+    .from("subcategories")
+    .select(SUBCATEGORY_SELECT_WITH_CREATOR)
+    .order("name");
+
+  if (!withCreator.error) return withCreator.data || [];
+
+  const fallback = await supabase
+    .from("subcategories")
+    .select(SUBCATEGORY_SELECT_BASE)
+    .order("name");
+  return fallback.data || [];
+}
+
 export async function getTicketOwnerStats() {
   const supabase = await createClient();
   const { data: agents } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, status, department:departments(name)")
+    .select("id, full_name, email, role, status, department:departments!department_id(name)")
     .eq("status", "active")
     .in("role", ["administrator", "hr_manager", "hr_agent"])
     .order("full_name");

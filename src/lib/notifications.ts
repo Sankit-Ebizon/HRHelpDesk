@@ -10,6 +10,22 @@ interface CreateNotificationParams {
   excludeUserId?: string;
 }
 
+type PrefRow = {
+  user_id: string;
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+};
+
+function isNotificationEnabled(
+  prefs: PrefRow[] | null | undefined,
+  userId: string,
+  field: "email_enabled" | "in_app_enabled"
+) {
+  const pref = prefs?.find((p) => p.user_id === userId);
+  if (!pref) return true;
+  return pref[field];
+}
+
 export async function createNotification(params: CreateNotificationParams) {
   const supabase = createServiceClient();
 
@@ -31,21 +47,27 @@ export async function createNotification(params: CreateNotificationParams) {
 
   if (userIds.length === 0) return;
 
-  const notifications = userIds.map((userId) => ({
-    user_id: userId,
-    ticket_id: params.ticketId,
-    type: params.type,
-    title: params.title,
-    message: params.message,
-  }));
-
-  await supabase.from("notifications").insert(notifications);
-
   const { data: prefs } = await supabase
     .from("notification_preferences")
-    .select("user_id, email_enabled")
+    .select("user_id, email_enabled, in_app_enabled")
     .in("user_id", userIds)
     .eq("type", params.type);
+
+  const inAppUserIds = userIds.filter((userId) =>
+    isNotificationEnabled(prefs, userId, "in_app_enabled")
+  );
+
+  if (inAppUserIds.length > 0) {
+    await supabase.from("notifications").insert(
+      inAppUserIds.map((userId) => ({
+        user_id: userId,
+        ticket_id: params.ticketId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+      }))
+    );
+  }
 
   const { data: users } = await supabase
     .from("profiles")
@@ -53,8 +75,7 @@ export async function createNotification(params: CreateNotificationParams) {
     .in("id", userIds);
 
   for (const user of users || []) {
-    const pref = prefs?.find((p) => p.user_id === user.id);
-    if (pref && !pref.email_enabled) continue;
+    if (!isNotificationEnabled(prefs, user.id, "email_enabled")) continue;
 
     await sendEmailNotification({
       to: user.email,

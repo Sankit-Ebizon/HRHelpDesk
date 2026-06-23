@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, PermissionAction, RolePermission } from "@/types";
+import type { Profile, PermissionAction, RolePermission, RoleReportSection } from "@/types";
 
 export async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createClient();
@@ -8,11 +8,16 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
-    .select("*, department:departments(*)")
+    .select("*, department:departments!department_id(*)")
     .eq("id", user.id)
     .single();
+
+  if (error) {
+    console.error("[getCurrentProfile]", error.message);
+    return null;
+  }
 
   return data as Profile | null;
 }
@@ -27,6 +32,28 @@ export async function getUserPermissions(
     .eq("role", role);
 
   return (data as RolePermission[]) || [];
+}
+
+export function canViewReportSection(
+  sections: RoleReportSection[],
+  sectionId: string,
+  role: Profile["role"]
+): boolean {
+  if (role === "administrator") return true;
+  const entry = sections.find((section) => section.section_id === sectionId);
+  if (!entry) return true;
+  return entry.can_view;
+}
+
+export async function getUserReportSections(
+  role: Profile["role"]
+): Promise<RoleReportSection[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("role_report_sections")
+    .select("*")
+    .eq("role", role);
+  return (data as RoleReportSection[]) || [];
 }
 
 export function canAccess(

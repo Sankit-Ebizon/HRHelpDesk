@@ -23,16 +23,16 @@ interface ReportsChartsProps {
 
 export function ReportsCharts({ categoryData, timeData }: ReportsChartsProps) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tickets by Category (30 days)</CardTitle>
+    <div className="grid min-w-0 gap-6 md:grid-cols-2">
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-sm sm:text-base">Tickets by Category (30 days)</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 p-4 pt-0 sm:p-6">
           {categoryData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No data available</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No data available</p>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
                   data={categoryData}
@@ -54,15 +54,15 @@ export function ReportsCharts({ categoryData, timeData }: ReportsChartsProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Time Logged by HR Users (30 days)</CardTitle>
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-sm sm:text-base">Time Logged by HR Users (30 days)</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 p-4 pt-0 sm:p-6">
           {timeData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No time logs recorded</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No time logs recorded</p>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={260}>
               <BarChart data={timeData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" fontSize={12} />

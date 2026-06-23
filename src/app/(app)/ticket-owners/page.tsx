@@ -7,12 +7,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { USER_ROLE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
+import { TicketOwnerListCards } from "@/components/ticket-owners/ticket-owner-list-cards";
 import { ExternalLink } from "lucide-react";
+import { canAccess } from "@/lib/auth";
+import { Plus } from "lucide-react";
 
 export default async function TicketOwnersPage() {
   const ctx = await getLayoutContext();
   if (!ctx) return null;
   const owners = await getTicketOwnerStats();
+  const canCreate = canAccess(ctx.permissions, "tickets", "create");
 
   return (
     <>
@@ -21,7 +25,8 @@ export default async function TicketOwnersPage() {
         <p className="text-sm text-muted-foreground">
           HR agents and managers who can be assigned tickets. Click to view their tickets.
         </p>
-        <DataPanel>
+        <TicketOwnerListCards owners={owners} canCreate={canCreate} />
+        <DataPanel className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -31,7 +36,7 @@ export default async function TicketOwnersPage() {
                 <TableHead>Department</TableHead>
                 <TableHead>Open Tickets</TableHead>
                 <TableHead>Total Assigned</TableHead>
-                <TableHead className="w-[60px]" />
+                <TableHead className="w-[110px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -60,11 +65,20 @@ export default async function TicketOwnersPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">{owner.total_tickets}</TableCell>
                   <TableCell>
-                    <Link href={`/tickets?view=my_open&owner_id=${owner.id}`}>
-                      <Button variant="ghost" size="sm" aria-label="View tickets">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/tickets?view=my_open&owner_id=${owner.id}`}>
+                        <Button variant="ghost" size="sm" aria-label="View tickets">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                      {canCreate && (
+                        <Link href={`/tickets/new?owner_id=${owner.id}`}>
+                          <Button variant="ghost" size="sm" aria-label="Create ticket for this owner">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

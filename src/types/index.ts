@@ -27,15 +27,32 @@ export interface Profile {
   department_id: string | null;
   status: UserStatus;
   avatar_url: string | null;
+  country_locale: string | null;
+  timezone: string | null;
   created_at: string;
   updated_at: string;
   department?: Department | null;
+  last_login_at?: string | null;
 }
 
 export interface Department {
   id: string;
   name: string;
   description: string | null;
+  help_center_display_name: string | null;
+  logo_url: string | null;
+  display_in_help_center: boolean;
+  associate_agent_id: string | null;
+  associate_agent?: {
+    id: string;
+    full_name: string;
+    email: string;
+  } | null;
+  created_by: string | null;
+  created_by_profile?: {
+    id: string;
+    full_name: string;
+  } | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -45,12 +62,19 @@ export interface Category {
   id: string;
   name: string;
   description: string | null;
+  image_url: string | null;
   department_id: string | null;
   is_active: boolean;
+  created_by: string | null;
+  created_by_profile?: {
+    id: string;
+    full_name: string;
+  } | null;
   created_at: string;
   updated_at: string;
   subcategories?: Subcategory[];
   department?: Department | null;
+  tickets?: { count: number }[];
 }
 
 export interface Subcategory {
@@ -58,7 +82,17 @@ export interface Subcategory {
   category_id: string;
   name: string;
   description: string | null;
+  image_url: string | null;
   is_active: boolean;
+  created_by: string | null;
+  created_by_profile?: {
+    id: string;
+    full_name: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+  category?: { id: string; name: string } | null;
+  tickets?: { count: number }[];
 }
 
 export interface Contact {
@@ -170,6 +204,13 @@ export interface RolePermission {
   can_edit: boolean;
   can_delete: boolean;
   module?: { slug: string; name: string };
+}
+
+export interface RoleReportSection {
+  id: string;
+  role: UserRole;
+  section_id: string;
+  can_view: boolean;
 }
 
 export interface RoleDefinition {

@@ -57,7 +57,7 @@ export function InviteUserForm({ departments, roles }: InviteUserFormProps) {
       <CardContent>
         {error && <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {success && <div className="mb-3 rounded-md bg-green-50 p-3 text-sm text-green-700">Invitation email sent. User will appear as Invited until they accept.</div>}
-        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
           <div className="space-y-2">
             <Label>Full Name *</Label>
             <Input name="full_name" required placeholder="Jane Doe" />

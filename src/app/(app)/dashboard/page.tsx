@@ -31,12 +31,12 @@ export default async function DashboardPage() {
   return (
     <>
       <AppHeader title="Dashboard" profile={ctx.profile}>
-        <Link href="/tickets/new">
-          <Button size="sm">
+        <Button asChild size="sm" className="zoho-btn-primary h-8 px-4">
+          <Link href="/tickets/new">
             <Plus className="h-4 w-4" />
             New Ticket
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </AppHeader>
 
       <PageContent className="space-y-8">
@@ -57,15 +57,15 @@ export default async function DashboardPage() {
                 Monitor employee requests, resolve issues faster, and keep your HR operations running smoothly — all from one command center.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/tickets">
-                  <Button>
+                <Button asChild className="zoho-btn-primary h-9 px-5">
+                  <Link href="/tickets">
                     View tickets
                     <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/tickets/new">
-                  <Button variant="outline">Create request</Button>
-                </Link>
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/tickets/new">Create request</Link>
+                </Button>
               </div>
             </div>
             <div className="hidden lg:flex justify-end">
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           {statConfig.map((stat, i) => {
             const Icon = stat.icon;
             const value = counts[stat.valueKey];

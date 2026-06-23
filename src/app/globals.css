@@ -4,75 +4,83 @@
 
 @layer base {
   :root {
-    --background: 220 20% 98%;
-    --foreground: 224 71% 4%;
+    /* Zoho Desk–style palette */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 0 0% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 239 84% 58%;
+    --popover-foreground: 0 0% 13%;
+    --primary: 207 73% 40%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 224 47% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 250 80% 58%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 13%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 32%;
+    --accent: 209 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 69% 40%;
+    --success: 145 63% 42%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 239 84% 58%;
-    --radius: 0.875rem;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 207 73% 40%;
+    --radius: 0.25rem;
+    --zoho-section: 209 100% 50%;
+    --zoho-text: 0 0% 13%;
+    --zoho-text-muted: 0 0% 32%;
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-accent: 239 84% 58%;
-    --sidebar-muted: 220 9% 46%;
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-accent: 207 73% 40%;
+    --sidebar-muted: 0 0% 40%;
     --surface-elevated: 0 0% 100%;
-    --glow-indigo: 239 84% 58%;
-    --glow-violet: 270 80% 58%;
-    --header-background: 0 0% 100% / 0.85;
-    --mesh-color: 220 20% 98%;
+    --glow-indigo: 207 73% 40%;
+    --glow-violet: 209 100% 50%;
+    --header-background: 0 0% 100% / 0.95;
+    --mesh-color: 0 0% 98%;
+    --top-nav-height: 48px;
   }
 
   .dark {
     --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
+    --foreground: 210 20% 92%;
     --card: 222 40% 10%;
-    --card-foreground: 210 40% 96%;
+    --card-foreground: 210 20% 92%;
     --popover: 222 42% 9%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 239 84% 67%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 207 73% 52%;
     --primary-foreground: 0 0% 100%;
     --secondary: 222 35% 14%;
-    --secondary-foreground: 210 30% 88%;
+    --secondary-foreground: 210 20% 88%;
     --muted: 222 32% 13%;
-    --muted-foreground: 215 20% 58%;
-    --accent: 250 80% 62%;
+    --muted-foreground: 215 15% 62%;
+    --accent: 209 100% 55%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 69% 45%;
+    --success: 145 63% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 55%;
     --warning-foreground: 0 0% 100%;
     --border: 222 28% 16%;
     --input: 222 28% 14%;
-    --ring: 239 84% 67%;
+    --ring: 207 73% 52%;
+    --zoho-section: 209 100% 55%;
+    --zoho-text: 210 20% 92%;
+    --zoho-text-muted: 215 15% 62%;
     --sidebar: 222 45% 6%;
-    --sidebar-foreground: 210 40% 92%;
+    --sidebar-foreground: 210 20% 92%;
     --sidebar-border: 222 25% 14%;
-    --sidebar-accent: 239 84% 67%;
-    --sidebar-muted: 215 18% 52%;
+    --sidebar-accent: 207 73% 52%;
+    --sidebar-muted: 215 15% 62%;
     --surface-elevated: 222 38% 12%;
-    --glow-indigo: 239 84% 67%;
-    --glow-violet: 270 80% 62%;
-    --header-background: 222 47% 7% / 0.85;
+    --glow-indigo: 207 73% 52%;
+    --glow-violet: 209 100% 55%;
+    --header-background: 222 47% 7% / 0.95;
     --mesh-color: 222 47% 7%;
   }
 }
@@ -89,18 +97,87 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-[13px] leading-normal;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply tracking-tight text-foreground;
+    @apply font-semibold text-foreground;
+    letter-spacing: normal;
+  }
+
+  h1 {
+    @apply text-[17px] font-medium;
+  }
+
+  h2 {
+    @apply text-[15px];
+  }
+
+  h3 {
+    @apply text-[14px];
+  }
+
+  p {
+    @apply leading-normal;
+  }
+
+  a:where(:not([class*="inline-flex"])) {
+    @apply text-primary;
+  }
+
+  a:where([class*="inline-flex"]) {
+    text-decoration: none;
   }
 }
 
 ::selection {
-  background: hsl(var(--primary) / 0.25);
+  background: hsl(var(--primary) / 0.18);
   color: hsl(var(--foreground));
+}
+
+@layer utilities {
+  .zoho-section-title {
+    @apply text-[14px] font-medium;
+    color: hsl(var(--zoho-section));
+  }
+
+  .zoho-page-title {
+    @apply text-[15px] font-medium text-foreground;
+  }
+
+  .zoho-body {
+    @apply text-[13px] leading-normal;
+    color: hsl(var(--zoho-text));
+  }
+
+  .zoho-label {
+    @apply text-[13px] font-medium;
+    color: hsl(var(--zoho-text-muted));
+  }
+
+  .zoho-link {
+    @apply text-[13px] text-primary hover:underline;
+  }
+
+  .zoho-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm bg-[#1a73b5] text-[13px] font-medium text-white transition-colors hover:bg-[#1557a0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a73b5]/40 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .zoho-btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border border-[#e0e0e0] bg-white text-[13px] font-medium text-[#444] transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .zoho-tickets {
+    --foreground: 0 0% 13%;
+    --muted-foreground: 0 0% 32%;
+    --card-foreground: 0 0% 13%;
+    color: hsl(var(--foreground));
+  }
+
+  .zoho-tickets .text-muted-foreground {
+    color: hsl(var(--muted-foreground));
+  }
 }
 
 @layer utilities {
@@ -138,34 +215,27 @@
   }
 
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(239 84% 58%) 0%, hsl(270 80% 58%) 100%);
+    background: hsl(var(--primary));
   }
 
   .dark .gradient-primary {
-    background: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(270 80% 62%) 100%);
+    background: hsl(var(--primary));
   }
 
   .gradient-text {
-    @apply bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent;
+    @apply text-foreground;
   }
 
   .dark .gradient-text {
-    @apply from-indigo-400 via-violet-400 to-purple-400;
+    @apply text-foreground;
   }
 
   .gradient-mesh {
     background-color: hsl(var(--mesh-color));
-    background-image:
-      radial-gradient(ellipse 80% 60% at 10% -10%, hsl(239 84% 58% / 0.12), transparent 50%),
-      radial-gradient(ellipse 60% 50% at 90% 10%, hsl(270 80% 58% / 0.08), transparent 45%),
-      radial-gradient(ellipse 50% 40% at 50% 100%, hsl(239 60% 50% / 0.05), transparent 50%);
   }
 
   .dark .gradient-mesh {
-    background-image:
-      radial-gradient(ellipse 80% 60% at 10% -10%, hsl(239 84% 67% / 0.14), transparent 50%),
-      radial-gradient(ellipse 60% 50% at 90% 10%, hsl(270 80% 62% / 0.1), transparent 45%),
-      radial-gradient(ellipse 50% 40% at 50% 100%, hsl(239 60% 40% / 0.08), transparent 50%);
+    background-color: hsl(var(--mesh-color));
   }
 
   .noise-overlay {
@@ -188,8 +258,22 @@
     @apply bg-white/[0.06];
   }
 
+  .app-topnav {
+    background: hsl(221 39% 18%);
+    @apply overflow-hidden text-white shadow-sm;
+  }
+
+  .app-topnav nav {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .app-topnav nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .app-header {
-  background: hsl(var(--header-background));
+    background: hsl(var(--header-background));
     @apply border-b border-border backdrop-blur-2xl;
   }
 
@@ -197,20 +281,12 @@
     @apply border-white/[0.06];
   }
 
-  .app-sidebar {
-    @apply border-r border-sidebar-border bg-sidebar text-sidebar-foreground backdrop-blur-2xl;
-  }
-
-  .dark .app-sidebar {
-    @apply border-white/[0.06] bg-[#070b14]/90;
-  }
-
   .nav-item-active {
-    @apply bg-primary/10 text-primary ring-1 ring-primary/20;
+    @apply bg-primary/10 text-primary;
   }
 
   .dark .nav-item-active {
-    @apply bg-gradient-to-r from-indigo-500/20 to-violet-500/10 text-white ring-indigo-500/20;
+    @apply bg-primary/15 text-primary;
   }
 
   .hover-lift {

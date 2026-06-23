@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth";
 import { createNotification, sendEmailNotification } from "@/lib/notifications";
 import type { TicketPriority, TicketStatus } from "@/types";
 import { parseTimeInput, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
+import { resolveTicketOwner } from "@/lib/department-routing";
 
 export async function createTicket(formData: FormData) {
   const { profile } = await requirePermission("tickets", "create");
@@ -37,6 +38,15 @@ export async function createTicket(formData: FormData) {
     }
   }
 
+  const departmentId = (formData.get("department_id") as string) || null;
+  const categoryId = (formData.get("category_id") as string) || null;
+  const explicitOwnerId = (formData.get("owner_id") as string) || null;
+  const ownerId = await resolveTicketOwner(supabase, {
+    departmentId,
+    categoryId,
+    explicitOwnerId,
+  });
+
   const { data, error } = await supabase
     .from("tickets")
     .insert({
@@ -46,11 +56,11 @@ export async function createTicket(formData: FormData) {
       contact_name: formData.get("contact_name") as string,
       contact_email: contactEmail,
       contact_details: (formData.get("contact_details") as string) || null,
-      department_id: (formData.get("department_id") as string) || null,
-      category_id: (formData.get("category_id") as string) || null,
+      department_id: departmentId,
+      category_id: categoryId,
       subcategory_id: (formData.get("subcategory_id") as string) || null,
       priority: (formData.get("priority") as TicketPriority) || "medium",
-      owner_id: (formData.get("owner_id") as string) || null,
+      owner_id: ownerId,
       due_date: (formData.get("due_date") as string) || null,
       created_by: profile.id,
     })
@@ -87,7 +97,14 @@ export async function updateTicket(ticketId: string, formData: FormData) {
 
   const oldTicket = await supabase.from("tickets").select("*").eq("id", ticketId).single();
   const newStatus = formData.get("status") as TicketStatus | null;
-  const newOwnerId = formData.get("owner_id") as string | null;
+  const departmentId = (formData.get("department_id") as string) || null;
+  const categoryId = (formData.get("category_id") as string) || null;
+  const explicitOwnerId = (formData.get("owner_id") as string) || null;
+  const newOwnerId = await resolveTicketOwner(supabase, {
+    departmentId,
+    categoryId,
+    explicitOwnerId,
+  });
 
   const updates: Record<string, unknown> = {
     subject: formData.get("subject") as string,
@@ -95,12 +112,12 @@ export async function updateTicket(ticketId: string, formData: FormData) {
     contact_name: formData.get("contact_name") as string,
     contact_email: formData.get("contact_email") as string,
     contact_details: (formData.get("contact_details") as string) || null,
-    department_id: (formData.get("department_id") as string) || null,
-    category_id: (formData.get("category_id") as string) || null,
+    department_id: departmentId,
+    category_id: categoryId,
     subcategory_id: (formData.get("subcategory_id") as string) || null,
     priority: formData.get("priority") as TicketPriority,
     status: newStatus,
-    owner_id: newOwnerId || null,
+    owner_id: newOwnerId,
     due_date: (formData.get("due_date") as string) || null,
   };
 
@@ -337,13 +354,53 @@ export async function updateUser(userId: string, formData: FormData) {
 }
 
 export async function createDepartment(formData: FormData) {
-  await requirePermission("departments", "create");
+  const { profile } = await requirePermission("departments", "create");
   const supabase = await createClient();
 
-  const { error } = await supabase.from("departments").insert({
+  const basePayload = {
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || null,
-  });
+  };
+
+  let logoUrl: string | null = null;
+  const logoFile = formData.get("logo") as File | null;
+  if (logoFile && logoFile.size > 0) {
+    const filePath = `${Date.now()}-${logoFile.name.replace(/[^\w.-]/g, "_")}`;
+    const { error: uploadError } = await supabase.storage
+      .from("department-logos")
+      .upload(filePath, logoFile);
+
+    if (!uploadError) {
+      const { data: publicUrl } = supabase.storage
+        .from("department-logos")
+        .getPublicUrl(filePath);
+      logoUrl = publicUrl.publicUrl;
+    }
+  }
+
+  const associateAgentId = formData.get("associate_agent_id") as string;
+  const displayInHelpCenter = formData.get("display_in_help_center") === "true";
+
+  const extendedPayload = {
+    ...basePayload,
+    help_center_display_name: (formData.get("help_center_display_name") as string) || null,
+    logo_url: logoUrl,
+    display_in_help_center: displayInHelpCenter,
+    associate_agent_id: associateAgentId || null,
+    created_by: profile.id,
+  };
+
+  let { error } = await supabase.from("departments").insert(extendedPayload);
+
+  if (error?.message?.includes("column")) {
+    ({ error } = await supabase.from("departments").insert({
+      ...basePayload,
+      created_by: profile.id,
+    }));
+    if (error?.message?.includes("column")) {
+      ({ error } = await supabase.from("departments").insert(basePayload));
+    }
+  }
 
   if (error) return { error: error.message };
   revalidatePath("/settings/departments");
@@ -354,16 +411,46 @@ export async function updateDepartment(departmentId: string, formData: FormData)
   await requirePermission("departments", "edit");
   const supabase = await createClient();
 
+  const updates: Record<string, unknown> = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || null,
+  };
+
+  if (formData.has("help_center_display_name")) {
+    updates.help_center_display_name =
+      (formData.get("help_center_display_name") as string) || null;
+  }
+  if (formData.has("display_in_help_center")) {
+    updates.display_in_help_center = formData.get("display_in_help_center") === "true";
+  }
+  if (formData.has("associate_agent_id")) {
+    const associateAgentId = formData.get("associate_agent_id") as string;
+    updates.associate_agent_id = associateAgentId || null;
+  }
+
+  const logoFile = formData.get("logo") as File | null;
+  if (logoFile && logoFile.size > 0) {
+    const filePath = `${departmentId}/${Date.now()}-${logoFile.name.replace(/[^\w.-]/g, "_")}`;
+    const { error: uploadError } = await supabase.storage
+      .from("department-logos")
+      .upload(filePath, logoFile);
+
+    if (uploadError) return { error: uploadError.message };
+
+    const { data: publicUrl } = supabase.storage
+      .from("department-logos")
+      .getPublicUrl(filePath);
+    updates.logo_url = publicUrl.publicUrl;
+  }
+
   const { error } = await supabase
     .from("departments")
-    .update({
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-    })
+    .update(updates)
     .eq("id", departmentId);
 
   if (error) return { error: error.message };
   revalidatePath("/settings/departments");
+  revalidatePath(`/settings/departments/${departmentId}`);
   return { success: true };
 }
 
@@ -381,21 +468,71 @@ export async function deleteDepartment(departmentId: string) {
   return { success: true };
 }
 
+const MAX_CATEGORY_IMAGE_BYTES = 1024 * 1024;
+
+async function uploadCategoryImage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  categoryId: string,
+  file: File
+): Promise<{ url?: string; error?: string }> {
+  if (file.size > MAX_CATEGORY_IMAGE_BYTES) {
+    return { error: "Image must be 1MB or smaller." };
+  }
+
+  const filePath = `${categoryId}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+  const { error: uploadError } = await supabase.storage
+    .from("category-images")
+    .upload(filePath, file);
+
+  if (uploadError) return { error: uploadError.message };
+
+  const { data: publicUrl } = supabase.storage
+    .from("category-images")
+    .getPublicUrl(filePath);
+
+  return { url: publicUrl.publicUrl };
+}
+
 export async function createCategory(formData: FormData) {
-  await requirePermission("categories", "create");
+  const { profile } = await requirePermission("categories", "create");
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const basePayload = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || null,
+    department_id: (formData.get("department_id") as string) || null,
+  };
+
+  let { data, error } = await supabase
     .from("categories")
-    .insert({
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-      department_id: (formData.get("department_id") as string) || null,
-    })
+    .insert({ ...basePayload, created_by: profile.id })
     .select("id")
     .single();
 
+  if (error?.message?.includes("column")) {
+    ({ data, error } = await supabase
+      .from("categories")
+      .insert(basePayload)
+      .select("id")
+      .single());
+  }
+
   if (error) return { error: error.message };
+
+  const imageFile = formData.get("image") as File | null;
+  if (imageFile && imageFile.size > 0 && data) {
+    const uploaded = await uploadCategoryImage(supabase, data.id, imageFile);
+    if (uploaded.error) return { error: uploaded.error };
+    if (uploaded.url) {
+      const { error: imageError } = await supabase
+        .from("categories")
+        .update({ image_url: uploaded.url })
+        .eq("id", data.id);
+      if (imageError && !imageError.message.includes("column")) {
+        return { error: imageError.message };
+      }
+    }
+  }
 
   const subcategoryName = (formData.get("subcategory_name") as string)?.trim();
   if (subcategoryName && data) {
@@ -416,13 +553,40 @@ export async function updateCategory(categoryId: string, formData: FormData) {
   await requirePermission("categories", "edit");
   const supabase = await createClient();
 
+  const updates: Record<string, unknown> = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || null,
+    department_id: (formData.get("department_id") as string) || null,
+  };
+
+  if (formData.get("remove_image") === "true") {
+    updates.image_url = null;
+  }
+
+  const imageFile = formData.get("image") as File | null;
+  if (imageFile && imageFile.size > 0) {
+    const uploaded = await uploadCategoryImage(supabase, categoryId, imageFile);
+    if (uploaded.error) return { error: uploaded.error };
+    if (uploaded.url) updates.image_url = uploaded.url;
+  }
+
   const { error } = await supabase
     .from("categories")
-    .update({
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-      department_id: (formData.get("department_id") as string) || null,
-    })
+    .update(updates)
+    .eq("id", categoryId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/settings/categories");
+  return { success: true };
+}
+
+export async function toggleCategoryStatus(categoryId: string, isActive: boolean) {
+  await requirePermission("categories", "edit");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("categories")
+    .update({ is_active: isActive })
     .eq("id", categoryId);
 
   if (error) return { error: error.message };
@@ -434,10 +598,18 @@ export async function deleteCategory(categoryId: string) {
   await requirePermission("categories", "delete");
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("categories")
-    .update({ is_active: false })
-    .eq("id", categoryId);
+  const { count: ticketCount } = await supabase
+    .from("tickets")
+    .select("id", { count: "exact", head: true })
+    .eq("category_id", categoryId);
+
+  if (ticketCount && ticketCount > 0) {
+    return {
+      error: `This category is linked to ${ticketCount} ticket(s). Turn it off using the toggle instead of deleting.`,
+    };
+  }
+
+  const { error } = await supabase.from("categories").delete().eq("id", categoryId);
 
   if (error) return { error: error.message };
   revalidatePath("/settings/categories");

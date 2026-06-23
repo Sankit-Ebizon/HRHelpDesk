@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { updateDepartment, deleteDepartment } from "@/lib/actions/tickets";
+import { deleteDepartment } from "@/lib/actions/tickets";
 import { runWithLoading } from "@/lib/loading-store";
 import { toast } from "@/lib/toast-store";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -26,92 +24,24 @@ interface DepartmentActionsProps {
   canDelete: boolean;
 }
 
-export function DepartmentActions({ department, canEdit, canDelete }: DepartmentActionsProps) {
+export function DepartmentActions({
+  department,
+  canEdit,
+  canDelete,
+}: DepartmentActionsProps) {
   if (!canEdit && !canDelete) return null;
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {canEdit && <EditDepartmentButton department={department} />}
+      {canEdit && (
+        <Button variant="ghost" size="icon" asChild aria-label="Edit department">
+          <Link href={`/settings/departments/${department.id}`}>
+            <Pencil className="h-4 w-4" />
+          </Link>
+        </Button>
+      )}
       {canDelete && <DeleteDepartmentButton department={department} />}
     </div>
-  );
-}
-
-function EditDepartmentButton({ department }: { department: Department }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const result = await runWithLoading(() =>
-      updateDepartment(department.id, new FormData(e.currentTarget))
-    );
-    if (result.error) {
-      setError(result.error);
-      setLoading(false);
-    } else {
-      setOpen(false);
-      setLoading(false);
-      toast({ title: "Department updated", variant: "success" });
-      router.refresh();
-    }
-  }
-
-  return (
-    <>
-      <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Edit department">
-        <Pencil className="h-4 w-4" />
-      </Button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit department</DialogTitle>
-          </DialogHeader>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor={`edit-name-${department.id}`}>Name</Label>
-              <Input
-                id={`edit-name-${department.id}`}
-                name="name"
-                defaultValue={department.name}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`edit-description-${department.id}`}>Description</Label>
-              <Textarea
-                id={`edit-description-${department.id}`}
-                name="description"
-                defaultValue={department.description || ""}
-                placeholder="Optional description"
-                rows={3}
-                className="min-h-[80px]"
-              />
-            </div>
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Saving..." : "Save changes"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 

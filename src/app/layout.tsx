@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter } from "next/font/google";
+import { Lato } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { RouteLoadingOverlay } from "@/components/ui/route-loading-overlay";
 import { ThemeProvider } from "@/components/theme-provider";
 
-const inter = Inter({
+const lato = Lato({
   subsets: ["latin"],
+  weight: ["400", "700"],
   variable: "--font-sans",
   display: "swap",
 });
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={lato.variable} suppressHydrationWarning>
       <body className="font-sans bg-background text-foreground antialiased">
         <ThemeProvider>
           {children}

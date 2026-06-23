@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportsCharts } from "@/components/reports/reports-charts";
 import { FixedReports } from "@/components/reports/fixed-reports";
 import { canAccess } from "@/lib/auth";
-import { getHRAgents, getCategories, getDepartments } from "@/lib/queries";
+import { getHRAgents, getCategories, getDepartments, getVisibleReportSectionsForRole } from "@/lib/queries";
 import { redirect } from "next/navigation";
 
 export default async function ReportsPage() {
@@ -29,6 +29,7 @@ export default async function ReportsPage() {
     agents,
     categories,
     departments,
+    visibleSections,
   ] = await Promise.all([
     supabase.from("tickets").select("id", { count: "exact", head: true }),
     supabase.from("tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress", "on_hold", "reopened"]),
@@ -40,6 +41,7 @@ export default async function ReportsPage() {
     getHRAgents(),
     getCategories(),
     getDepartments(),
+    getVisibleReportSectionsForRole(ctx.profile.role),
   ]);
 
   const categoryMap: Record<string, number> = {};
@@ -79,14 +81,14 @@ export default async function ReportsPage() {
     <>
       <AppHeader title="Reports" profile={ctx.profile} />
       <PageContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
           {stats.map((stat) => (
             <Card key={stat.label}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+              <CardHeader className="pb-2 p-4 sm:p-6">
+                <CardTitle className="text-xs font-medium text-muted-foreground sm:text-sm">{stat.label}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stat.value}</div>
+              <CardContent className="p-4 pt-0 sm:p-6">
+                <div className="text-2xl font-bold sm:text-3xl">{stat.value}</div>
               </CardContent>
             </Card>
           ))}
@@ -101,6 +103,7 @@ export default async function ReportsPage() {
           agents={agents}
           categories={categories.map((c) => ({ id: c.id, name: c.name }))}
           departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+          visibleSections={visibleSections}
         />
       </PageContent>
     </>

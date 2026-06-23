@@ -34,16 +34,29 @@ export async function GET(request: NextRequest) {
 
   for (const ticket of tickets) {
     const owner = ticket.owner as unknown as { email: string; full_name: string } | null;
+    if (!ticket.owner_id || !owner?.email) continue;
 
-    if (owner?.email) {
+    const { data: prefs } = await supabase
+      .from("notification_preferences")
+      .select("email_enabled, in_app_enabled")
+      .eq("user_id", ticket.owner_id)
+      .eq("type", "due_date_reminder")
+      .maybeSingle();
+
+    const emailEnabled = prefs?.email_enabled ?? true;
+    const inAppEnabled = prefs?.in_app_enabled ?? true;
+
+    if (emailEnabled) {
       await sendEmailNotification({
         to: owner.email,
         subject: `Due Date Reminder: ${ticket.ticket_number}`,
         html: `<p>Ticket <strong>${ticket.ticket_number}</strong> is due tomorrow.</p><p>${ticket.subject}</p>`,
       });
+    }
 
+    if (inAppEnabled) {
       await supabase.from("notifications").insert({
-        user_id: ticket.owner_id!,
+        user_id: ticket.owner_id,
         ticket_id: ticket.id,
         type: "due_date_reminder",
         title: `Due Tomorrow: ${ticket.ticket_number}`,

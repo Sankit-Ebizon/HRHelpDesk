@@ -19,23 +19,42 @@ import {
 import { TICKET_PRIORITY_LABELS } from "@/types";
 
 interface NewTicketFormProps {
-  departments: { id: string; name: string }[];
+  departments: {
+    id: string;
+    name: string;
+    associate_agent_id?: string | null;
+  }[];
   categories: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
   agents: { id: string; full_name: string }[];
+  initialOwnerId?: string;
 }
 
-export function NewTicketForm({ departments, categories, agents }: NewTicketFormProps) {
+export function NewTicketForm({ departments, categories, agents, initialOwnerId }: NewTicketFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [ownerId, setOwnerId] = useState(initialOwnerId ?? "");
   const selectedCategory = categories.find((c) => c.id === categoryId);
+
+  function handleDepartmentChange(value: string) {
+    setDepartmentId(value);
+    const department = departments.find((d) => d.id === value);
+    if (department?.associate_agent_id) {
+      // If we were navigated to this form with a specific owner, keep it.
+      if (!initialOwnerId) setOwnerId(department.associate_agent_id);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     const formData = new FormData(e.currentTarget);
+    if (departmentId) formData.set("department_id", departmentId);
+    if (categoryId) formData.set("category_id", categoryId);
+    if (ownerId) formData.set("owner_id", ownerId);
     const result = await runWithLoading(() => createTicket(formData));
     if (result.error) {
       setError(result.error);
@@ -82,7 +101,7 @@ export function NewTicketForm({ departments, categories, agents }: NewTicketForm
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Department</Label>
-              <Select name="department_id">
+              <Select value={departmentId} onValueChange={handleDepartmentChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
@@ -105,7 +124,6 @@ export function NewTicketForm({ departments, categories, agents }: NewTicketForm
                   ))}
                 </SelectContent>
               </Select>
-              <input type="hidden" name="category_id" value={categoryId} />
             </div>
           </div>
 
@@ -141,9 +159,9 @@ export function NewTicketForm({ departments, categories, agents }: NewTicketForm
             </div>
             <div className="space-y-2">
               <Label>Ticket Owner</Label>
-              <Select name="owner_id">
+              <Select value={ownerId} onValueChange={setOwnerId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Assign to..." />
+                  <SelectValue placeholder="Auto-assign from department" />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.map((a) => (
@@ -151,6 +169,9 @@ export function NewTicketForm({ departments, categories, agents }: NewTicketForm
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Leave empty to assign the department&apos;s associate agent automatically.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="due_date">Due Date</Label>

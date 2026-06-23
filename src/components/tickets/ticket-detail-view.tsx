@@ -33,6 +33,7 @@ interface TicketDetailViewProps {
   categories: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
   agents: { id: string; full_name: string }[];
   currentUser: Profile;
+  variant?: "default" | "zoho";
 }
 
 export function TicketDetailView({
@@ -45,6 +46,7 @@ export function TicketDetailView({
   categories,
   agents,
   currentUser,
+  variant = "default",
 }: TicketDetailViewProps) {
   const [replyContent, setReplyContent] = useState("");
   const [internalContent, setInternalContent] = useState("");
@@ -58,6 +60,14 @@ export function TicketDetailView({
 
   const totalMinutes = timeLogs.reduce((sum, log) => sum + log.time_spent_minutes, 0);
   const canEditAllTimeLogs = ["administrator", "hr_manager"].includes(currentUser.role);
+  const isZoho = variant === "zoho";
+  const conversationCount = comments.length + 1;
+  const tabTriggerClass = isZoho
+    ? "rounded-none border-b-2 border-transparent bg-transparent px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#444] shadow-none data-[state=active]:border-[#1a73b5] data-[state=active]:text-[#1a73b5] data-[state=active]:shadow-none"
+    : "shrink-0 gap-1.5 px-2.5 py-2 text-xs sm:px-3.5 sm:text-sm";
+  const tabListClass = isZoho
+    ? "inline-flex h-auto w-full flex-nowrap justify-start gap-0 rounded-none border-b border-border bg-transparent p-0"
+    : "inline-flex h-auto w-max min-w-full flex-nowrap justify-start p-1 sm:w-auto";
 
   async function handleReply(type: "reply" | "internal") {
     const content = type === "reply" ? replyContent : internalContent;
@@ -107,57 +117,145 @@ export function TicketDetailView({
   }
 
   return (
-    <Tabs defaultValue="conversation" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="conversation" className="gap-2">
-          <MessageSquare className="h-4 w-4" /> Conversation
-        </TabsTrigger>
-        <TabsTrigger value="details" className="gap-2">
-          <FileText className="h-4 w-4" /> Details
-        </TabsTrigger>
-        <TabsTrigger value="attachments" className="gap-2">
-          <Paperclip className="h-4 w-4" /> Attachments ({attachments.length})
-        </TabsTrigger>
-        <TabsTrigger value="time-logs" className="gap-2">
-          <Clock className="h-4 w-4" /> Time Logs ({timeLogs.length})
-        </TabsTrigger>
-        <TabsTrigger value="history" className="gap-2">
-          <History className="h-4 w-4" /> History
-        </TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="conversation" className="min-w-0 space-y-4">
+      <div className={cn("-mx-1 overflow-x-auto pb-1", isZoho && "mx-0")}>
+        <TabsList className={tabListClass}>
+          <TabsTrigger value="conversation" className={tabTriggerClass}>
+            {!isZoho && <MessageSquare className="h-4 w-4 shrink-0" />}
+            {isZoho ? `${conversationCount} Conversation` : (
+              <>
+                <span className="hidden sm:inline">Conversation</span>
+                <span className="sr-only sm:hidden">Conversation</span>
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="details" className={tabTriggerClass}>
+            {!isZoho && <FileText className="h-4 w-4 shrink-0" />}
+            {isZoho ? "Resolution" : (
+              <>
+                <span className="hidden sm:inline">Details</span>
+                <span className="sr-only sm:hidden">Details</span>
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="time-logs" className={tabTriggerClass}>
+            {!isZoho && <Clock className="h-4 w-4 shrink-0" />}
+            {isZoho ? "Time Entry" : (
+              <>
+                <span className="hidden sm:inline">Time Logs ({timeLogs.length})</span>
+                <span className="sm:hidden">{timeLogs.length}</span>
+                <span className="sr-only sm:hidden">Time Logs</span>
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="attachments" className={tabTriggerClass}>
+            {!isZoho && <Paperclip className="h-4 w-4 shrink-0" />}
+            {isZoho ? `Attachment (${attachments.length})` : (
+              <>
+                <span className="hidden sm:inline">Attachments ({attachments.length})</span>
+                <span className="sm:hidden">{attachments.length}</span>
+                <span className="sr-only sm:hidden">Attachments</span>
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="history" className={tabTriggerClass}>
+            {!isZoho && <History className="h-4 w-4 shrink-0" />}
+            {isZoho ? "Activity" : (
+              <>
+                <span className="hidden sm:inline">History</span>
+                <span className="sr-only sm:hidden">History</span>
+              </>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       {/* Conversation Tab */}
       <TabsContent value="conversation" className="space-y-4">
         <div className="space-y-4">
-          <Card>
-            <CardContent className="pt-6">
+          {isZoho ? (
+            <div className="border-b border-border pb-4">
               <div className="flex gap-3">
-                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8eef5] text-xs font-bold text-[#333]">
                   {ticket.contact_name.charAt(0)}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-[13px] font-semibold text-[#222]">{ticket.contact_name}</span>
+                    <span className="text-[12px] font-medium text-[#555]">{formatDateTime(ticket.created_at)}</span>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#222]">
+                    {ticket.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+          <Card>
+            <CardContent className="p-4 pt-6 sm:p-6">
+              <div className="flex gap-3">
+                <div className="h-8 w-8 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                  {ticket.contact_name.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-medium text-sm">{ticket.contact_name}</span>
                     <span className="text-xs text-muted-foreground">{formatDateTime(ticket.created_at)}</span>
                   </div>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{ticket.description}</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap break-words">{ticket.description}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+          )}
 
-          {comments.map((comment) => (
+          {comments.map((comment) =>
+            isZoho ? (
+              <div
+                key={comment.id}
+                className={cn(
+                  "border-b border-border pb-4",
+                  comment.comment_type === "internal" && "bg-amber-50/40 px-2 -mx-2 rounded"
+                )}
+              >
+                <div className="flex gap-3">
+                  <div
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                      comment.comment_type === "internal" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+                    )}
+                  >
+                    {comment.author_name.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-[13px] font-semibold text-[#222]">{comment.author_name}</span>
+                      {comment.comment_type === "internal" && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                          <Lock className="h-3 w-3" /> Internal
+                        </span>
+                      )}
+                      <span className="text-[12px] font-medium text-[#555]">{formatDateTime(comment.created_at)}</span>
+                    </div>
+                    <div
+                      className="mt-2 max-w-none break-words text-[13px] leading-relaxed text-[#222]"
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(comment.content) }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
             <Card key={comment.id} className={comment.comment_type === "internal" ? "border-amber-200 bg-amber-50/50" : ""}>
-              <CardContent className="pt-6">
+              <CardContent className="p-4 pt-6 sm:p-6">
                 <div className="flex gap-3">
                   <div className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                    "h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold",
                     comment.comment_type === "internal" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
                   )}>
                     {comment.author_name.charAt(0)}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium text-sm">{comment.author_name}</span>
                       {comment.comment_type === "internal" && (
                         <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
@@ -167,20 +265,21 @@ export function TicketDetailView({
                       <span className="text-xs text-muted-foreground">{formatDateTime(comment.created_at)}</span>
                     </div>
                     <div
-                      className="text-sm mt-1 prose prose-sm max-w-none whitespace-pre-wrap"
+                      className="prose prose-sm mt-1 max-w-none break-words text-sm whitespace-pre-wrap"
                       dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(comment.content) }}
                     />
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+            )
+          )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
+        <div id="ticket-reply" className={cn("grid gap-4", isZoho ? "grid-cols-1 lg:grid-cols-2" : "md:grid-cols-2")}>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Reply to Contact</CardTitle>
+              <CardTitle className={cn("text-sm", isZoho && "font-semibold text-[#222]")}>Reply to Contact</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <RichTextEditor
@@ -188,7 +287,12 @@ export function TicketDetailView({
                 value={replyContent}
                 onChange={setReplyContent}
               />
-              <Button size="sm" onClick={() => handleReply("reply")} disabled={loading || !stripHtmlTags(replyContent).trim()}>
+              <Button
+                size="sm"
+                className={cn(isZoho && "zoho-btn-primary")}
+                onClick={() => handleReply("reply")}
+                disabled={loading || !stripHtmlTags(replyContent).trim()}
+              >
                 <Send className="h-4 w-4 mr-1" /> Send Reply
               </Button>
             </CardContent>
@@ -196,7 +300,7 @@ export function TicketDetailView({
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
+              <CardTitle className={cn("text-sm flex items-center gap-2", isZoho && "font-semibold text-[#222]")}>
                 <Lock className="h-4 w-4" /> Internal Comment
               </CardTitle>
             </CardHeader>
@@ -207,7 +311,13 @@ export function TicketDetailView({
                 onChange={(e) => setInternalContent(e.target.value)}
                 rows={4}
               />
-              <Button size="sm" variant="secondary" onClick={() => handleReply("internal")} disabled={loading || !stripHtmlTags(internalContent).trim()}>
+              <Button
+                size="sm"
+                variant={isZoho ? "outline" : "secondary"}
+                className={cn(isZoho && "border-[#ccc] font-medium text-[#222] hover:bg-[#f5f7f9]")}
+                onClick={() => handleReply("internal")}
+                disabled={loading || !stripHtmlTags(internalContent).trim()}
+              >
                 Add Internal Note
               </Button>
             </CardContent>
@@ -218,7 +328,7 @@ export function TicketDetailView({
       {/* Details Tab */}
       <TabsContent value="details">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">Ticket Details</CardTitle>
             <Button variant="outline" size="sm" onClick={() => setEditMode(!editMode)}>
               {editMode ? "Cancel" : "Edit"}
@@ -235,7 +345,7 @@ export function TicketDetailView({
                   <Label>Description</Label>
                   <Textarea name="description" defaultValue={ticket.description} rows={4} required />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Contact Name</Label>
                     <Input name="contact_name" defaultValue={ticket.contact_name} required />
@@ -249,7 +359,7 @@ export function TicketDetailView({
                   <Label>Contact Details</Label>
                   <Input name="contact_details" defaultValue={ticket.contact_details || ""} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Status</Label>
                     <Select name="status" defaultValue={ticket.status}>
@@ -273,7 +383,7 @@ export function TicketDetailView({
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Owner</Label>
                     <Select name="owner_id" defaultValue={ticket.owner_id || ""}>
@@ -290,7 +400,7 @@ export function TicketDetailView({
                     <Input name="due_date" type="date" defaultValue={ticket.due_date?.split("T")[0] || ""} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Department</Label>
                     <Select name="department_id" defaultValue={ticket.department_id || ""}>
@@ -331,7 +441,7 @@ export function TicketDetailView({
                 <Button type="submit" disabled={loading}>Save Changes</Button>
               </form>
             ) : (
-              <dl className="grid grid-cols-2 gap-4 text-sm">
+              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div><dt className="text-muted-foreground">Ticket ID</dt><dd className="font-mono font-medium">{ticket.ticket_number}</dd></div>
                 <div><dt className="text-muted-foreground">Status</dt><dd>{TICKET_STATUS_LABELS[ticket.status]}</dd></div>
                 <div><dt className="text-muted-foreground">Priority</dt><dd>{TICKET_PRIORITY_LABELS[ticket.priority]}</dd></div>
@@ -351,27 +461,32 @@ export function TicketDetailView({
       {/* Attachments Tab */}
       <TabsContent value="attachments">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Attachments</CardTitle>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className={cn("text-base", isZoho && "font-semibold text-[#222]")}>Attachments</CardTitle>
             <div>
               <input type="file" id="file-upload" className="hidden" onChange={handleUpload} />
-              <Button variant="outline" size="sm" onClick={() => document.getElementById("file-upload")?.click()}>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(isZoho && "border-[#ccc] font-medium text-[#222] hover:bg-[#f5f7f9]")}
+                onClick={() => document.getElementById("file-upload")?.click()}
+              >
                 Upload File
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {attachments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No attachments yet.</p>
+              <p className={cn("text-sm", isZoho ? "font-medium text-[#444]" : "text-muted-foreground")}>No attachments yet.</p>
             ) : (
               <div className="space-y-2">
                 {attachments.map((att) => (
-                  <div key={att.id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="flex items-center gap-3">
-                      <Paperclip className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{att.file_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                  <div key={att.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#222]">{att.file_name}</p>
+                        <p className={cn("text-xs", isZoho ? "font-medium text-[#555]" : "text-muted-foreground")}>
                           {att.file_size ? `${(att.file_size / 1024).toFixed(1)} KB` : ""} · {formatRelative(att.created_at)}
                         </p>
                       </div>
@@ -393,23 +508,23 @@ export function TicketDetailView({
       <TabsContent value="time-logs" className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center justify-between">
+            <CardTitle className={cn("flex flex-col gap-1 text-base sm:flex-row sm:items-center sm:justify-between", isZoho && "font-semibold text-[#222]")}>
               <span>Time Logs</span>
-              <span className="text-sm font-normal text-muted-foreground">
-                Total: <strong className="text-foreground">{minutesToHHMM(totalMinutes)}</strong>
+              <span className={cn("text-sm font-normal", isZoho ? "font-medium text-[#555]" : "text-muted-foreground")}>
+                Total: <strong className="text-[#222]">{minutesToHHMM(totalMinutes)}</strong>
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {timeLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground mb-4">No time entries yet.</p>
+              <p className={cn("text-sm mb-4", isZoho ? "font-medium text-[#444]" : "text-muted-foreground")}>No time entries yet.</p>
             ) : (
               <div className="space-y-3 mb-6">
                 {timeLogs.map((log) => (
                   <div key={log.id} className="rounded-lg border p-3">
                     {editingTimeLogId === log.id ? (
                       <form onSubmit={(e) => handleUpdateTimeLog(e, log.id)} className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <Label className="text-xs">Log Date</Label>
                             <Input name="log_date" type="date" defaultValue={log.log_date} required max={new Date().toISOString().split("T")[0]} />
@@ -429,16 +544,16 @@ export function TicketDetailView({
                         </div>
                       </form>
                     ) : (
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-3 text-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm sm:gap-3">
                             <span className="font-medium">{log.user?.full_name}</span>
-                            <span className="text-muted-foreground">|</span>
+                            <span className="hidden text-muted-foreground sm:inline">|</span>
                             <span>{formatDate(log.log_date)}</span>
-                            <span className="text-muted-foreground">|</span>
+                            <span className="hidden text-muted-foreground sm:inline">|</span>
                             <span className="font-mono font-medium">{minutesToHHMM(log.time_spent_minutes)}</span>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">{log.description}</p>
+                          <p className={cn("mt-1 text-sm", isZoho ? "text-[#444]" : "text-muted-foreground")}>{log.description}</p>
                         </div>
                         {(log.user_id === currentUser.id || canEditAllTimeLogs) && (
                           <div className="flex gap-1">
@@ -464,7 +579,7 @@ export function TicketDetailView({
 
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium mb-3">Add Time Entry</h4>
-              <form onSubmit={handleAddTimeLog} className="grid grid-cols-3 gap-4 items-end">
+              <form onSubmit={handleAddTimeLog} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end">
                 <div className="space-y-2">
                   <Label>Log Date *</Label>
                   <Input name="log_date" type="date" required max={new Date().toISOString().split("T")[0]} />
@@ -473,7 +588,7 @@ export function TicketDetailView({
                   <Label>Time Spent (HH:MM) *</Label>
                   <Input name="time_spent" placeholder="00:30" required pattern="\d{1,2}:\d{2}" />
                 </div>
-                <div className="space-y-2 col-span-3">
+                <div className="col-span-1 space-y-2 sm:col-span-2 lg:col-span-3">
                   <Label>Description *</Label>
                   <Textarea name="description" placeholder="What did you work on?" required rows={2} />
                 </div>
@@ -488,17 +603,17 @@ export function TicketDetailView({
       <TabsContent value="history">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Activity History</CardTitle>
+            <CardTitle className={cn("text-base", isZoho && "font-semibold text-[#222]")}>Activity History</CardTitle>
           </CardHeader>
           <CardContent>
             {history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No history recorded yet.</p>
+              <p className={cn("text-sm", isZoho ? "font-medium text-[#444]" : "text-muted-foreground")}>No history recorded yet.</p>
             ) : (
               <div className="space-y-3">
                 {history.map((h) => (
-                  <div key={h.id} className="flex gap-3 text-sm">
-                    <div className="text-xs text-muted-foreground w-36 shrink-0">{formatDateTime(h.created_at)}</div>
-                    <div>
+                  <div key={h.id} className="flex flex-col gap-1 text-sm sm:flex-row sm:gap-3">
+                    <div className={cn("shrink-0 text-xs sm:w-36", isZoho ? "font-medium text-[#555]" : "text-muted-foreground")}>{formatDateTime(h.created_at)}</div>
+                    <div className="min-w-0 break-words">
                       {(() => {
                         const fieldName = h.field_name === "owner_id"
                           ? "owner"

@@ -5,6 +5,8 @@ import { runFixedReportAction } from "@/lib/actions/reports";
 import { downloadReportAsExcel } from "@/lib/reports/export";
 import { getDefaultDateRange, REPORT_DEFINITIONS } from "@/lib/reports/types";
 import type { ReportDateRange, ReportFilters, ReportResult, ReportType } from "@/lib/reports/types";
+import { CUSTOM_REPORT_SECTION } from "@/lib/reports/sections";
+import { getPreviousCalendarWeek } from "@/lib/reports/date-ranges";
 import { runWithLoading } from "@/lib/loading-store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,11 +22,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Eye, Search } from "lucide-react";
+import { OwnerMultiSelect } from "@/components/reports/owner-multi-select";
+import { CustomReportBuilder } from "@/components/reports/custom-report-builder";
+
+const CUSTOM_REPORT_TAB = "custom" as const;
+type ActiveReport = ReportType | typeof CUSTOM_REPORT_TAB;
 
 interface FixedReportsProps {
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  visibleSections: string[];
 }
 
 function formatCellValue(value: unknown): string {
@@ -35,36 +43,57 @@ function formatCellValue(value: unknown): string {
 function buildFilters(
   contactName: string,
   contactEmail: string,
-  ownerId: string,
+  ownerIds: string[],
   categoryId: string,
-  departmentId: string
+  departmentId: string,
+  timesheetAgentId: string
 ): ReportFilters | undefined {
   const filters: ReportFilters = {};
   if (contactName.trim()) filters.contact_name = contactName.trim();
   if (contactEmail.trim()) filters.contact_email = contactEmail.trim();
-  if (ownerId) filters.owner_id = ownerId;
+  if (ownerIds.length > 0) filters.owner_ids = ownerIds;
   if (categoryId) filters.category_id = categoryId;
   if (departmentId) filters.department_id = departmentId;
+  if (timesheetAgentId) filters.timesheet_agent_id = timesheetAgentId;
   return Object.keys(filters).length > 0 ? filters : undefined;
 }
 
-export function FixedReports({ agents, categories, departments }: FixedReportsProps) {
+export function FixedReports({
+  agents,
+  categories,
+  departments,
+  visibleSections,
+}: FixedReportsProps) {
+  const visibleReportDefinitions = REPORT_DEFINITIONS.filter((report) =>
+    visibleSections.includes(report.id)
+  );
+  const showCustomReport = visibleSections.includes(CUSTOM_REPORT_SECTION);
+  const previousWeek = getPreviousCalendarWeek();
   const defaultRange = getDefaultDateRange();
-  const [activeReport, setActiveReport] = useState<ReportType>("tickets-created");
+  const initialReport =
+    visibleReportDefinitions[0]?.id ?? (showCustomReport ? CUSTOM_REPORT_TAB : "tickets-created");
+  const [activeReport, setActiveReport] = useState<ActiveReport>(initialReport);
   const [dateFrom, setDateFrom] = useState(defaultRange.dateFrom);
   const [dateTo, setDateTo] = useState(defaultRange.dateTo);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const [ownerIds, setOwnerIds] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
+  const [timesheetAgentId, setTimesheetAgentId] = useState(agents[0]?.id ?? "");
   const [appliedDateFrom, setAppliedDateFrom] = useState(defaultRange.dateFrom);
   const [appliedDateTo, setAppliedDateTo] = useState(defaultRange.dateTo);
   const [appliedFilters, setAppliedFilters] = useState<ReportFilters | undefined>();
   const [results, setResults] = useState<Partial<Record<ReportType, ReportResult>>>({});
   const [loadingReport, setLoadingReport] = useState<ReportType | null>(null);
 
-  const activeDefinition = REPORT_DEFINITIONS.find((report) => report.id === activeReport)!;
+  const activeDefinition =
+    activeReport === CUSTOM_REPORT_TAB
+      ? null
+      : REPORT_DEFINITIONS.find((report) => report.id === activeReport)!;
+
+  const usesDateFilter =
+    activeReport === CUSTOM_REPORT_TAB || Boolean(activeDefinition?.usesDateRange);
 
   const loadReport = useCallback(
     async (reportType: ReportType, showTable = true) => {
@@ -87,13 +116,30 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
   );
 
   useEffect(() => {
+    if (activeReport === CUSTOM_REPORT_TAB) return;
     void loadReport(activeReport);
   }, [activeReport, appliedDateFrom, appliedDateTo, appliedFilters, loadReport]);
 
   function handleSearch() {
     setAppliedDateFrom(dateFrom);
     setAppliedDateTo(dateTo);
-    setAppliedFilters(buildFilters(contactName, contactEmail, ownerId, categoryId, departmentId));
+    setAppliedFilters(
+      buildFilters(contactName, contactEmail, ownerIds, categoryId, departmentId, timesheetAgentId)
+    );
+  }
+
+  function handleTabChange(value: string) {
+    const nextReport = value as ActiveReport;
+    if (nextReport === "timesheet-agent") {
+      setDateFrom(previousWeek.dateFrom);
+      setDateTo(previousWeek.dateTo);
+      setAppliedDateFrom(previousWeek.dateFrom);
+      setAppliedDateTo(previousWeek.dateTo);
+      setAppliedFilters(
+        buildFilters(contactName, contactEmail, ownerIds, categoryId, departmentId, timesheetAgentId)
+      );
+    }
+    setActiveReport(nextReport);
   }
 
   async function handleView(reportType: ReportType) {
@@ -111,12 +157,28 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
     }
   }
 
+  if (visibleReportDefinitions.length === 0 && !showCustomReport) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            No report sections are enabled for your profile. Contact an administrator.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Reports</CardTitle>
         <CardDescription>
-          View and download predefined reports. Date and ticket filters apply to matching reports.
+          View and download reports. Use the Custom Report tab to build your own with modules, joins,
+          and fields.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -128,7 +190,7 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
               type="date"
               value={dateFrom}
               onChange={(event) => setDateFrom(event.target.value)}
-              disabled={!activeDefinition.usesDateRange}
+              disabled={!usesDateFilter}
             />
           </div>
           <div className="space-y-2">
@@ -138,7 +200,7 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
               type="date"
               value={dateTo}
               onChange={(event) => setDateTo(event.target.value)}
-              disabled={!activeDefinition.usesDateRange}
+              disabled={!usesDateFilter}
             />
           </div>
         </div>
@@ -171,22 +233,12 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
           </div>
           <div className="space-y-2">
             <Label>Owner</Label>
-            <Select
-              value={ownerId || "all"}
-              onValueChange={(value) => setOwnerId(value === "all" ? "" : value)}
-            >
-              <SelectTrigger id="report-owner">
-                <SelectValue placeholder="All Owners" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Owners</SelectItem>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OwnerMultiSelect
+              id="report-owner"
+              agents={agents}
+              value={ownerIds}
+              onChange={setOwnerIds}
+            />
           </div>
           <div className="space-y-2">
             <Label>Category</Label>
@@ -238,30 +290,70 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
           </div>
         </div>
 
-        {!activeDefinition.usesDateRange && (
+        {activeReport === CUSTOM_REPORT_TAB ? (
           <p className="text-sm text-muted-foreground">
-            {activeDefinition.label} shows a current snapshot and does not use the date filter.
+            Custom reports use the date and ticket filters above.
           </p>
+        ) : (
+          !activeDefinition?.usesDateRange && (
+            <p className="text-sm text-muted-foreground">
+              {activeDefinition?.label} shows a current snapshot and does not use the date filter.
+            </p>
+          )
         )}
 
-        <Tabs value={activeReport} onValueChange={(value) => setActiveReport(value as ReportType)}>
+        <Tabs value={activeReport} onValueChange={handleTabChange}>
           <TabsList className="h-auto flex-wrap justify-start">
-            {REPORT_DEFINITIONS.map((report) => (
+            {visibleReportDefinitions.map((report) => (
               <TabsTrigger key={report.id} value={report.id}>
                 {report.label}
               </TabsTrigger>
             ))}
+            {showCustomReport && (
+              <TabsTrigger value={CUSTOM_REPORT_TAB}>Custom Report</TabsTrigger>
+            )}
           </TabsList>
 
-          {REPORT_DEFINITIONS.map((report) => {
+          {visibleReportDefinitions.map((report) => {
             const result = results[report.id];
             const isLoading = loadingReport === report.id;
+            const selectedAgent = agents.find((agent) => agent.id === timesheetAgentId);
+            const timesheetTitle =
+              report.id === "timesheet-agent" && selectedAgent
+                ? `Timesheet ${selectedAgent.full_name}`
+                : report.label;
 
             return (
               <TabsContent key={report.id} value={report.id} className="space-y-4">
+                {report.id === "timesheet-agent" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Agent</Label>
+                      <Select value={timesheetAgentId} onValueChange={setTimesheetAgentId}>
+                        <SelectTrigger id="timesheet-agent">
+                          <SelectValue placeholder="Select agent..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {agents.map((agent) => (
+                            <SelectItem key={agent.id} value={agent.id}>
+                              {agent.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <p className="text-sm text-muted-foreground">
+                        Showing previous week by default. Adjust the date range above and click Search
+                        to change the period.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h3 className="font-medium">{report.label}</h3>
+                    <h3 className="font-medium">{timesheetTitle}</h3>
                     <p className="text-sm text-muted-foreground">{report.description}</p>
                   </div>
                   <div className="flex gap-2">
@@ -326,6 +418,23 @@ export function FixedReports({ agents, categories, departments }: FixedReportsPr
               </TabsContent>
             );
           })}
+
+          {showCustomReport && (
+          <TabsContent value={CUSTOM_REPORT_TAB} className="space-y-4">
+            <div>
+              <h3 className="font-medium">Custom Report</h3>
+              <p className="text-sm text-muted-foreground">
+                Select a module, optionally join a related sub-module, then choose which fields to
+                include.
+              </p>
+            </div>
+            <CustomReportBuilder
+              dateFrom={appliedDateFrom}
+              dateTo={appliedDateTo}
+              filters={appliedFilters}
+            />
+          </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

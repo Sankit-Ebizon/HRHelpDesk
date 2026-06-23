@@ -65,8 +65,13 @@ export function DeleteTicketButton({
           <Trash2 className="h-4 w-4" />
         </Button>
       ) : (
-        <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
-          <Trash2 className="h-4 w-4 mr-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(true)}
+          className="zoho-btn-danger h-8 px-3 shadow-none"
+        >
+          <Trash2 className="h-4 w-4" />
           Delete
         </Button>
       )}

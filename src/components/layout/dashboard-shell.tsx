@@ -1,25 +1,31 @@
-import { getCurrentProfile, getUserPermissions } from "@/lib/auth";
+import { getCurrentProfile, getUserPermissions, canAccess } from "@/lib/auth";
 import { getTicketCounts, getUnreadNotificationCount } from "@/lib/queries";
-import { AppSidebar, sidebarWidth } from "@/components/layout/sidebar";
+import { AppTopNav, topNavHeight } from "@/components/layout/sidebar";
+import { ProfileMissingFallback } from "@/components/layout/profile-missing-fallback";
 
 export async function DashboardShell({ children }: { children: React.ReactNode }) {
   const profile = await getCurrentProfile();
-  if (!profile) return null;
+  if (!profile) {
+    return <ProfileMissingFallback />;
+  }
 
-  const [unreadCount, ticketCounts] = await Promise.all([
+  const [unreadCount, ticketCounts, permissions] = await Promise.all([
     getUnreadNotificationCount(profile.id),
     getTicketCounts(profile.id),
+    getUserPermissions(profile.role),
   ]);
   const openTicketCount = ticketCounts.all;
+  const showSettings = canAccess(permissions, "settings", "read");
 
   return (
     <div className="relative min-h-screen gradient-mesh noise-overlay">
-      <AppSidebar
+      <AppTopNav
         profile={profile}
         unreadCount={unreadCount}
         openTicketCount={openTicketCount}
+        showSettings={showSettings}
       />
-      <main style={{ paddingLeft: sidebarWidth }} className="relative max-lg:!pl-0">
+      <main style={{ paddingTop: topNavHeight }} className="relative">
         {children}
       </main>
     </div>

@@ -16,6 +16,11 @@ export function formatDateTime(date: string | Date) {
   return format(d, "dd-MMM-yyyy HH:mm");
 }
 
+export function formatTicketListDate(date: string | Date) {
+  const d = typeof date === "string" ? parseISO(date) : date;
+  return format(d, "dd MMM hh:mm a");
+}
+
 export function formatRelative(date: string | Date) {
   const d = typeof date === "string" ? parseISO(date) : date;
   return formatDistanceToNow(d, { addSuffix: true });

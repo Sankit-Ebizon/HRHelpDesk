@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ReportDateRange, ReportFilters, ReportResult, ReportType } from "./types";
 import { hasTicketFilters } from "./types";
+import { daysBetween, firstNameFromFullName } from "./date-ranges";
 
 const HR_ROLES = ["administrator", "hr_manager", "hr_agent"];
 
@@ -25,8 +26,8 @@ function applyTicketFilters(query: any, filters?: ReportFilters) {
   if (filters.contact_email) {
     next = next.ilike("contact_email", `%${filters.contact_email}%`);
   }
-  if (filters.owner_id) {
-    next = next.eq("owner_id", filters.owner_id);
+  if (filters.owner_ids?.length) {
+    next = next.in("owner_id", filters.owner_ids);
   }
   if (filters.category_id) {
     next = next.eq("category_id", filters.category_id);
@@ -146,34 +147,84 @@ async function getTicketsClosedReport(
   const supabase = await createClient();
   let query = supabase
     .from("tickets")
-    .select(TICKET_LIST_SELECT)
+    .select(`
+      subject, created_at, closed_at,
+      owner:profiles!tickets_owner_id_fkey(full_name),
+      category:categories(name),
+      time_logs(time_spent_minutes)
+    `)
     .eq("status", "closed")
     .gte("closed_at", dateRange.dateFrom)
     .lte("closed_at", `${dateRange.dateTo}T23:59:59.999Z`);
   query = applyTicketFilters(query, filters);
   const { data } = await query.order("closed_at", { ascending: false });
 
+  const rows = (data || []).map((row) => {
+    const logs = Array.isArray(row.time_logs) ? row.time_logs : [];
+    const totalMinutes = logs.reduce(
+      (sum, log) => sum + (Number(log.time_spent_minutes) || 0),
+      0
+    );
+    const ownerName = nestedName(row.owner);
+
+    return {
+      first_name: ownerName !== "—" ? firstNameFromFullName(ownerName) : "—",
+      category: nestedName(row.category),
+      subject: row.subject ?? "—",
+      ticket_age_in_days: daysBetween(String(row.created_at), new Date(String(row.closed_at))),
+      closed_time: formatDateTime(row.closed_at),
+      hours_spent: Math.round((totalMinutes / 60) * 10) / 10,
+    };
+  });
+
   return {
     columns: [
-      ...TICKET_COLUMNS,
-      { key: "resolution_hours", label: "Resolution (hrs)" },
+      { key: "first_name", label: "First Name" },
+      { key: "category", label: "Category" },
+      { key: "subject", label: "Subject" },
+      { key: "ticket_age_in_days", label: "Ticket Age in Days" },
+      { key: "closed_time", label: "Date of Ticket Closed Time" },
+      { key: "hours_spent", label: "Hours Spent" },
     ],
-    rows: (data || []).map((row) => mapTicketRow(row as NestedRecord)),
+    rows,
   };
 }
 
 async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
   const supabase = await createClient();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+
   let query = supabase
     .from("tickets")
-    .select(TICKET_LIST_SELECT)
-    .in("status", ["open", "in_progress", "on_hold", "reopened"]);
+    .select(`
+      contact_name, subject, status, created_at,
+      category:categories(name)
+    `)
+    .in("status", ["open", "in_progress", "on_hold", "reopened"])
+    .lt("created_at", cutoff.toISOString());
   query = applyTicketFilters(query, filters);
-  const { data } = await query.order("created_at", { ascending: false });
+  const { data } = await query.order("created_at", { ascending: true });
+
+  const rows = (data || []).map((row) => ({
+    name: row.contact_name ?? "—",
+    category: nestedName(row.category),
+    created_time: formatDateTime(row.created_at),
+    subject: row.subject ?? "—",
+    ticket_status: row.status ?? "—",
+    ticket_age_in_days: daysBetween(String(row.created_at)),
+  }));
 
   return {
-    columns: TICKET_COLUMNS,
-    rows: (data || []).map((row) => mapTicketRow(row as NestedRecord)),
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "category", label: "Category" },
+      { key: "created_time", label: "Created_Time" },
+      { key: "subject", label: "Subject" },
+      { key: "ticket_status", label: "TicketStatus" },
+      { key: "ticket_age_in_days", label: "Ticket_Age_in_Days" },
+    ],
+    rows,
   };
 }
 
@@ -244,47 +295,33 @@ async function getTimeLoggedByHRReport(
     .in("role", HR_ROLES);
 
   const hrUserIds = hrUsers?.map((user) => user.id) || [];
+  const emptyColumns = [
+    { key: "name", label: "Name" },
+    { key: "category", label: "category" },
+    { key: "log_date", label: "Log_Date" },
+    { key: "subject", label: "Subject" },
+    { key: "total_hours_spent", label: "Total Hours Spent" },
+  ];
+
   if (hrUserIds.length === 0) {
-    return {
-      columns: [
-        { key: "user", label: "HR User" },
-        { key: "ticket_number", label: "Ticket ID" },
-        { key: "ticket_subject", label: "Ticket Subject" },
-        { key: "log_date", label: "Log Date" },
-        { key: "time_spent_minutes", label: "Time (min)" },
-        { key: "time_spent_hours", label: "Time (hrs)" },
-        { key: "description", label: "Description" },
-      ],
-      rows: [],
-    };
+    return { columns: emptyColumns, rows: [] };
   }
 
   const ticketIds = await getFilteredTicketIds(filters);
   if (ticketIds && ticketIds.length === 0) {
     return {
-      columns: [
-        { key: "user", label: "HR User" },
-        { key: "ticket_number", label: "Ticket ID" },
-        { key: "ticket_subject", label: "Ticket Subject" },
-        { key: "log_date", label: "Log Date" },
-        { key: "time_spent_minutes", label: "Time (min)" },
-        { key: "time_spent_hours", label: "Time (hrs)" },
-        { key: "description", label: "Description" },
-      ],
+      columns: emptyColumns,
       rows: [],
-      summary: {
-        total_entries: 0,
-        total_hours: 0,
-      },
+      summary: { total_entries: 0, total_hours: 0 },
     };
   }
 
   let query = supabase
     .from("time_logs")
     .select(`
-      log_date, time_spent_minutes, description,
+      log_date, time_spent_minutes,
       user:profiles(full_name, role),
-      ticket:tickets(ticket_number, subject)
+      ticket:tickets(subject, category:categories(name))
     `)
     .in("user_id", hrUserIds)
     .gte("log_date", dateRange.dateFrom)
@@ -298,34 +335,114 @@ async function getTimeLoggedByHRReport(
     const minutes = Number(row.time_spent_minutes) || 0;
     const ticket = Array.isArray(row.ticket) ? row.ticket[0] : row.ticket;
     const ticketRecord = ticket as NestedRecord | null;
+    const category = ticketRecord?.category as NestedRecord | null;
+
     return {
-      user: nestedName(row.user),
-      ticket_number: ticketRecord?.ticket_number ?? "—",
-      ticket_subject: ticketRecord?.subject ?? "—",
+      name: nestedName(row.user),
+      category: nestedName(category),
       log_date: formatDate(row.log_date),
-      time_spent_minutes: minutes,
-      time_spent_hours: Math.round((minutes / 60) * 10) / 10,
-      description: row.description ?? "—",
+      subject: ticketRecord?.subject ?? "—",
+      total_hours_spent: Math.round((minutes / 60) * 10) / 10,
     };
   });
 
   const totalMinutes = rows.reduce(
-    (sum, row) => sum + (typeof row.time_spent_minutes === "number" ? row.time_spent_minutes : 0),
+    (sum, row) =>
+      sum + (typeof row.total_hours_spent === "number" ? row.total_hours_spent * 60 : 0),
     0
   );
 
   return {
     columns: [
-      { key: "user", label: "HR User" },
-      { key: "ticket_number", label: "Ticket ID" },
-      { key: "ticket_subject", label: "Ticket Subject" },
-      { key: "log_date", label: "Log Date" },
-      { key: "time_spent_minutes", label: "Time (min)" },
-      { key: "time_spent_hours", label: "Time (hrs)" },
-      { key: "description", label: "Description" },
+      { key: "name", label: "Name" },
+      { key: "category", label: "category" },
+      { key: "log_date", label: "Log_Date" },
+      { key: "subject", label: "Subject" },
+      { key: "total_hours_spent", label: "Total Hours Spent" },
     ],
     rows,
     summary: {
+      total_entries: rows.length,
+      total_hours: Math.round((totalMinutes / 60) * 10) / 10,
+    },
+  };
+}
+
+async function getTimesheetAgentReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
+  const supabase = await createClient();
+  const emptyColumns = [
+    { key: "name", label: "Name" },
+    { key: "category", label: "category" },
+    { key: "log_date", label: "Log_Date" },
+    { key: "subject", label: "Subject" },
+    { key: "total_hours_spent", label: "Total Hours Spent" },
+  ];
+
+  if (!filters?.timesheet_agent_id) {
+    return {
+      columns: emptyColumns,
+      rows: [],
+      summary: { agent: "—", total_hours: 0 },
+    };
+  }
+
+  const ticketIds = await getFilteredTicketIds(filters);
+
+  let query = supabase
+    .from("time_logs")
+    .select(`
+      log_date, time_spent_minutes,
+      user:profiles(full_name),
+      ticket:tickets(subject, category:categories(name))
+    `)
+    .eq("user_id", filters.timesheet_agent_id)
+    .gte("log_date", dateRange.dateFrom)
+    .lte("log_date", dateRange.dateTo);
+
+  if (ticketIds) {
+    if (ticketIds.length === 0) {
+      return {
+        columns: emptyColumns,
+        rows: [],
+        summary: { total_entries: 0, total_hours: 0 },
+      };
+    }
+    query = query.in("ticket_id", ticketIds);
+  }
+
+  const { data } = await query.order("log_date", { ascending: false });
+
+  const rows = (data || []).map((row) => {
+    const minutes = Number(row.time_spent_minutes) || 0;
+    const ticket = Array.isArray(row.ticket) ? row.ticket[0] : row.ticket;
+    const ticketRecord = ticket as NestedRecord | null;
+    const category = ticketRecord?.category as NestedRecord | null;
+
+    return {
+      name: nestedName(row.user),
+      category: nestedName(category),
+      log_date: formatDate(row.log_date),
+      subject: ticketRecord?.subject ?? "—",
+      total_hours_spent: Math.round((minutes / 60) * 10) / 10,
+    };
+  });
+
+  const totalMinutes = rows.reduce(
+    (sum, row) =>
+      sum + (typeof row.total_hours_spent === "number" ? row.total_hours_spent * 60 : 0),
+    0
+  );
+
+  const agentName = rows[0]?.name ?? "—";
+
+  return {
+    columns: emptyColumns,
+    rows,
+    summary: {
+      agent: agentName,
       total_entries: rows.length,
       total_hours: Math.round((totalMinutes / 60) * 10) / 10,
     },
@@ -407,6 +524,8 @@ export async function getFixedReport(
       return getAvgResolutionTimeReport(dateRange!, filters);
     case "time-logged-hr":
       return getTimeLoggedByHRReport(dateRange!, filters);
+    case "timesheet-agent":
+      return getTimesheetAgentReport(dateRange!, filters);
     case "category-analysis":
       return getCategoryAnalysisReport(dateRange!, filters);
     default:

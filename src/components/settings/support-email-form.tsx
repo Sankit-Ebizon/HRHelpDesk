@@ -4,9 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { runWithLoading } from "@/lib/loading-store";
 import { saveSupportEmail } from "@/lib/actions/settings";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/toast-store";
+import { cn } from "@/lib/utils";
 
 interface SupportEmailFormProps {
   initialEmail: string;
@@ -17,13 +16,11 @@ export function SupportEmailForm({ initialEmail }: SupportEmailFormProps) {
   const [email, setEmail] = useState(initialEmail);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccess(null);
 
     const formData = new FormData();
     formData.set("support_email", email);
@@ -32,7 +29,7 @@ export function SupportEmailForm({ initialEmail }: SupportEmailFormProps) {
     if (result?.error) {
       setError(result.error);
     } else {
-      setSuccess("Support email updated successfully.");
+      toast({ title: "Support email updated", variant: "success" });
       router.refresh();
     }
 
@@ -40,23 +37,39 @@ export function SupportEmailForm({ initialEmail }: SupportEmailFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
-      <div className="space-y-2">
-        <Label htmlFor="support_email">Support Email</Label>
-        <Input
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="support_email" className="text-[13px] text-red-600">
+          Support Email
+        </label>
+        <input
           id="support_email"
+          name="support_email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="support@company.com"
           required
+          className={cn(
+            "mt-1.5 w-full border-0 border-b border-zinc-300 bg-transparent px-0 py-2 text-[13px] text-zinc-900",
+            "outline-none placeholder:text-zinc-500 focus:border-[#1a73b5]"
+          )}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {success && <p className="text-sm text-green-600">{success}</p>}
-      <Button type="submit" disabled={loading}>
+
+      {error && (
+        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+          {error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="inline-flex h-8 items-center rounded-sm bg-[#1a73b5] px-5 text-[13px] font-medium text-white hover:bg-[#155a8a] disabled:opacity-60"
+      >
         {loading ? "Saving..." : "Save"}
-      </Button>
+      </button>
     </form>
   );
 }

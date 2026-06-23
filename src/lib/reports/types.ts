@@ -5,6 +5,7 @@ export type ReportType =
   | "overdue-tickets"
   | "avg-resolution-time"
   | "time-logged-hr"
+  | "timesheet-agent"
   | "category-analysis";
 
 export interface ReportDateRange {
@@ -15,9 +16,10 @@ export interface ReportDateRange {
 export interface ReportFilters {
   contact_name?: string;
   contact_email?: string;
-  owner_id?: string;
+  owner_ids?: string[];
   category_id?: string;
   department_id?: string;
+  timesheet_agent_id?: string;
 }
 
 export function hasTicketFilters(filters?: ReportFilters): boolean {
@@ -25,7 +27,7 @@ export function hasTicketFilters(filters?: ReportFilters): boolean {
   return Boolean(
     filters.contact_name ||
       filters.contact_email ||
-      filters.owner_id ||
+      (filters.owner_ids && filters.owner_ids.length > 0) ||
       filters.category_id ||
       filters.department_id
   );
@@ -47,6 +49,16 @@ export interface ReportDefinition {
   label: string;
   description: string;
   usesDateRange: boolean;
+}
+
+export interface CustomReportConfig {
+  name: string;
+  moduleId: string;
+  joinId?: string;
+  fields: string[];
+  dateFrom?: string;
+  dateTo?: string;
+  filters?: ReportFilters;
 }
 
 export function getDefaultDateRange(): ReportDateRange {
@@ -76,7 +88,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {
     id: "open-tickets",
     label: "Open Tickets",
-    description: "Current snapshot of all open tickets",
+    description: "Open tickets that have been open for more than 7 days",
     usesDateRange: false,
   },
   {
@@ -95,6 +107,12 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     id: "time-logged-hr",
     label: "Time Logged by HR Users",
     description: "Time log entries by HR team members in the selected date range",
+    usesDateRange: true,
+  },
+  {
+    id: "timesheet-agent",
+    label: "Timesheet (Agent)",
+    description: "Per-agent timesheet for the selected date range (defaults to previous week)",
     usesDateRange: true,
   },
   {

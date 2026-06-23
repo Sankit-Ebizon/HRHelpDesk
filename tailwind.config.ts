@@ -61,6 +61,11 @@ const config: Config = {
         surface: {
           elevated: "hsl(var(--surface-elevated))",
         },
+        zoho: {
+          section: "hsl(var(--zoho-section))",
+          text: "hsl(var(--zoho-text))",
+          muted: "hsl(var(--zoho-text-muted))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -72,8 +77,11 @@ const config: Config = {
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],
-        "display-sm": ["2.25rem", { lineHeight: "2.5rem", letterSpacing: "-0.02em" }],
-        "display": ["3rem", { lineHeight: "3.25rem", letterSpacing: "-0.03em" }],
+        zoho: ["0.8125rem", { lineHeight: "1.25rem" }],
+        "zoho-sm": ["0.75rem", { lineHeight: "1.125rem" }],
+        "zoho-lg": ["0.9375rem", { lineHeight: "1.375rem" }],
+        "display-sm": ["1.125rem", { lineHeight: "1.5rem", letterSpacing: "normal" }],
+        display: ["1.25rem", { lineHeight: "1.625rem", letterSpacing: "normal" }],
       },
       boxShadow: {
         soft: "0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 6px -1px rgb(0 0 0 / 0.25)",

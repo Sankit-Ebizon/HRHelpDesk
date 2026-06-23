@@ -8,10 +8,15 @@ import { getLayoutContext } from "@/components/layout/dashboard-shell";
 import { canAccess } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
-export default async function NewTicketPage() {
+interface PageProps {
+  searchParams: Promise<{ owner_id?: string }>;
+}
+
+export default async function NewTicketPage({ searchParams }: PageProps) {
   const ctx = await getLayoutContext();
   if (!ctx) return null;
   if (!canAccess(ctx.permissions, "tickets", "create")) redirect("/dashboard");
+  const params = await searchParams;
   const [departments, categories, agents] = await Promise.all([
     getDepartments(),
     getCategories(),
@@ -29,7 +34,12 @@ export default async function NewTicketPage() {
         </Link>
       </AppHeader>
       <div className="p-6 max-w-3xl">
-        <NewTicketForm departments={departments} categories={categories} agents={agents} />
+        <NewTicketForm
+          departments={departments}
+          categories={categories}
+          agents={agents}
+          initialOwnerId={params.owner_id || undefined}
+        />
       </div>
     </>
   );

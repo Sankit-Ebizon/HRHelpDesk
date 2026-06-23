@@ -64,8 +64,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   }
 
   return (
-    <div className="rounded-md border bg-background">
-      <div className="flex flex-wrap items-center gap-1 border-b p-2">
+    <div className="max-w-full overflow-hidden rounded-md border bg-background">
+      <div className="flex flex-wrap items-center gap-1 overflow-x-auto border-b p-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => applyFormatBlock("p")}>Normal</Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => applyFormatBlock("h3")}>H3</Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => applyFormatBlock("blockquote")}>Quote</Button>
