@@ -232,52 +232,56 @@ export function DepartmentDetailView({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const formData = new FormData(e.currentTarget);
-    formData.set(
-      "display_in_help_center",
-      editDisplayInHelpCenter ? "true" : "false"
-    );
-    const result = await runWithLoading(() =>
-      updateDepartment(department.id, formData)
-    );
-    if (result.error) {
-      setError(result.error);
+    try {
+      const formData = new FormData(e.currentTarget);
+      formData.set(
+        "display_in_help_center",
+        editDisplayInHelpCenter ? "true" : "false"
+      );
+      const result = await runWithLoading(() =>
+        updateDepartment(department.id, formData)
+      );
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast({ title: "Department updated", variant: "success" });
+      setEditOpen(false);
+      router.refresh();
+    } finally {
       setLoading(false);
-      return;
     }
-    toast({ title: "Department updated", variant: "success" });
-    setLoading(false);
-    setEditOpen(false);
-    router.refresh();
   }
 
   async function handleAgentsSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const formData = new FormData();
-    formData.set("name", department.name);
-    formData.set("description", department.description || "");
-    formData.set(
-      "help_center_display_name",
-      department.help_center_display_name || ""
-    );
-    formData.set(
-      "display_in_help_center",
-      department.display_in_help_center ? "true" : "false"
-    );
-    formData.set("associate_agent_id", associateAgentId);
-    const result = await runWithLoading(() =>
-      updateDepartment(department.id, formData)
-    );
-    if (result.error) {
-      setError(result.error);
+    try {
+      const formData = new FormData();
+      formData.set("name", department.name);
+      formData.set("description", department.description || "");
+      formData.set(
+        "help_center_display_name",
+        department.help_center_display_name || ""
+      );
+      formData.set(
+        "display_in_help_center",
+        department.display_in_help_center ? "true" : "false"
+      );
+      formData.set("associate_agent_id", associateAgentId);
+      const result = await runWithLoading(() =>
+        updateDepartment(department.id, formData)
+      );
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      toast({ title: "Agent settings updated", variant: "success" });
+      router.refresh();
+    } finally {
       setLoading(false);
-      return;
     }
-    toast({ title: "Agent settings updated", variant: "success" });
-    setLoading(false);
-    router.refresh();
   }
 
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -285,20 +289,23 @@ export function DepartmentDetailView({
     if (!file) return;
     setLoading(true);
     setError(null);
-    const formData = new FormData();
-    formData.set("name", department.name);
-    formData.set("description", department.description || "");
-    formData.append("logo", file);
-    const result = await runWithLoading(() =>
-      updateDepartment(department.id, formData)
-    );
-    if (result.error) {
-      setError(result.error);
-    } else {
-      toast({ title: "Logo updated", variant: "success" });
-      router.refresh();
+    try {
+      const formData = new FormData();
+      formData.set("name", department.name);
+      formData.set("description", department.description || "");
+      formData.append("logo", file);
+      const result = await runWithLoading(() =>
+        updateDepartment(department.id, formData)
+      );
+      if (result.error) {
+        setError(result.error);
+      } else {
+        toast({ title: "Logo updated", variant: "success" });
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const selectedAgent = agents.find((a) => a.id === associateAgentId);

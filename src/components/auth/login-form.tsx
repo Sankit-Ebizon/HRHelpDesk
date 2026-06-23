@@ -34,10 +34,13 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     setError(null);
-    const result = await signIn(formData);
-    if (result?.error) {
-      setError(result.error);
-      toast({ variant: "error", title: "Login failed", description: result.error });
+    try {
+      const result = await signIn(formData);
+      if (result?.error) {
+        setError(result.error);
+        toast({ variant: "error", title: "Login failed", description: result.error });
+      }
+    } finally {
       setLoading(false);
     }
   }

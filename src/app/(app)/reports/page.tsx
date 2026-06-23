@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getLayoutContext } from "@/components/layout/dashboard-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportsCharts } from "@/components/reports/reports-charts";
-import { FixedReports } from "@/components/reports/fixed-reports";
+import { ReportsListView } from "@/components/reports/reports-list-view";
 import { canAccess } from "@/lib/auth";
-import { getHRAgents, getCategories, getDepartments, getVisibleReportSectionsForRole } from "@/lib/queries";
+import { getVisibleReportSectionsForRole } from "@/lib/queries";
+import { REPORT_DEFINITIONS } from "@/lib/reports/types";
+import { CUSTOM_REPORT_SECTION } from "@/lib/reports/sections";
 import { redirect } from "next/navigation";
 
 export default async function ReportsPage() {
@@ -26,9 +28,6 @@ export default async function ReportsPage() {
     { data: ticketsByCategory },
     { data: timeByUser },
     { data: recentTickets },
-    agents,
-    categories,
-    departments,
     visibleSections,
   ] = await Promise.all([
     supabase.from("tickets").select("id", { count: "exact", head: true }),
@@ -38,11 +37,13 @@ export default async function ReportsPage() {
     supabase.from("tickets").select("category_id, categories(name)").gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("time_logs").select("user_id, time_spent_minutes, profiles(full_name)").gte("log_date", thirtyDaysAgo.toISOString().split("T")[0]),
     supabase.from("tickets").select("created_at, closed_at, status").eq("status", "closed").gte("closed_at", thirtyDaysAgo.toISOString()),
-    getHRAgents(),
-    getCategories(),
-    getDepartments(),
     getVisibleReportSectionsForRole(ctx.profile.role),
   ]);
+
+  const visibleReports = REPORT_DEFINITIONS.filter((report) =>
+    visibleSections.includes(report.id)
+  );
+  const showCustomReport = visibleSections.includes(CUSTOM_REPORT_SECTION);
 
   const categoryMap: Record<string, number> = {};
   ticketsByCategory?.forEach((t) => {
@@ -99,12 +100,7 @@ export default async function ReportsPage() {
           timeData={Object.values(userTimeMap).map((u) => ({ name: u.name, hours: Math.round(u.minutes / 60 * 10) / 10 }))}
         />
 
-        <FixedReports
-          agents={agents}
-          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-          departments={departments.map((d) => ({ id: d.id, name: d.name }))}
-          visibleSections={visibleSections}
-        />
+        <ReportsListView reports={visibleReports} showCustomReport={showCustomReport} />
       </PageContent>
     </>
   );

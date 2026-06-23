@@ -1,6 +1,13 @@
-import { REPORT_DEFINITIONS } from "./types";
+import { REPORT_DEFINITIONS, type ReportType } from "./types";
 
 export const CUSTOM_REPORT_SECTION = "custom" as const;
+
+export const CUSTOM_REPORT_META = {
+  id: CUSTOM_REPORT_SECTION,
+  label: "Custom Report",
+  description:
+    "Build your own report by selecting a module, optional joins, and the fields to include.",
+} as const;
 
 export type ReportSectionId =
   | (typeof REPORT_DEFINITIONS)[number]["id"]
@@ -13,4 +20,8 @@ export const ALL_REPORT_SECTIONS: { id: ReportSectionId; label: string }[] = [
 
 export function isReportSectionId(value: string): value is ReportSectionId {
   return ALL_REPORT_SECTIONS.some((section) => section.id === value);
+}
+
+export function isReportType(value: string): value is ReportType {
+  return REPORT_DEFINITIONS.some((report) => report.id === value);
 }

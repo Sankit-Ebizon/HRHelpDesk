@@ -99,23 +99,25 @@ export function UserDetailView({
     setLoading(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    formData.set("is_active", isActive ? "true" : "false");
-    formData.set("current_status", user.status);
-    formData.set("role", role);
-    if (departmentId) formData.set("department_id", departmentId);
+    try {
+      const formData = new FormData(e.currentTarget);
+      formData.set("is_active", isActive ? "true" : "false");
+      formData.set("current_status", user.status);
+      formData.set("role", role);
+      if (departmentId) formData.set("department_id", departmentId);
 
-    const result = await runWithLoading(() => updateUser(user.id, formData));
+      const result = await runWithLoading(() => updateUser(user.id, formData));
 
-    if (result?.error) {
-      setError(result.error);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+
+      toast({ title: "User updated", variant: "success" });
+      router.refresh();
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast({ title: "User updated", variant: "success" });
-    setLoading(false);
-    router.refresh();
   }
 
   return (

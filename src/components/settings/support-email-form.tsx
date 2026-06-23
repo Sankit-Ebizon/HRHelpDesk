@@ -22,18 +22,20 @@ export function SupportEmailForm({ initialEmail }: SupportEmailFormProps) {
     setLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.set("support_email", email);
-    const result = await runWithLoading(() => saveSupportEmail(formData));
+    try {
+      const formData = new FormData();
+      formData.set("support_email", email);
+      const result = await runWithLoading(() => saveSupportEmail(formData));
 
-    if (result?.error) {
-      setError(result.error);
-    } else {
-      toast({ title: "Support email updated", variant: "success" });
-      router.refresh();
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        toast({ title: "Support email updated", variant: "success" });
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (

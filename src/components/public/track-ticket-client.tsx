@@ -65,8 +65,9 @@ export function TrackTicketClient({ supportEmail }: TrackTicketClientProps) {
         title: "Lookup failed",
         description: "Please try again in a moment.",
       });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (
@@ -125,7 +126,7 @@ export function TrackTicketClient({ supportEmail }: TrackTicketClientProps) {
                   "rounded-full px-3 py-1 text-xs font-medium",
                   getStatusColor(ticket.status)
                 )}>
-                  {TICKET_STATUS_LABELS[ticket.status as keyof typeof TICKET_STATUS_LABELS]}
+                  Ticket Status: {TICKET_STATUS_LABELS[ticket.status as keyof typeof TICKET_STATUS_LABELS]}
                 </span>
               </div>
               <h3 className="font-medium">{ticket.subject}</h3>

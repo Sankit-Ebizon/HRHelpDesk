@@ -51,16 +51,19 @@ export function NewTicketForm({ departments, categories, agents, initialOwnerId 
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const formData = new FormData(e.currentTarget);
-    if (departmentId) formData.set("department_id", departmentId);
-    if (categoryId) formData.set("category_id", categoryId);
-    if (ownerId) formData.set("owner_id", ownerId);
-    const result = await runWithLoading(() => createTicket(formData));
-    if (result.error) {
-      setError(result.error);
+    try {
+      const formData = new FormData(e.currentTarget);
+      if (departmentId) formData.set("department_id", departmentId);
+      if (categoryId) formData.set("category_id", categoryId);
+      if (ownerId) formData.set("owner_id", ownerId);
+      const result = await runWithLoading(() => createTicket(formData));
+      if (result.error) {
+        setError(result.error);
+      } else if (result.ticket) {
+        router.push(`/tickets/${result.ticket.id}`);
+      }
+    } finally {
       setLoading(false);
-    } else if (result.ticket) {
-      router.push(`/tickets/${result.ticket.id}`);
     }
   }
 

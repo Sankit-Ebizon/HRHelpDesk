@@ -26,3 +26,20 @@ export function buildTicketDetailUrl(ticketId: string, params: TicketSearchParam
 export function buildTicketsListUrl(params: TicketSearchParams): string {
   return `/tickets${buildTicketsQuery(params)}`;
 }
+
+export function buildOwnerTicketsUrl(ownerId: string): string {
+  return buildTicketsListUrl({ view: "all", owner_id: ownerId, list: "1" });
+}
+
+export function buildOwnerOpenTicketsUrl(ownerId: string): string {
+  return buildTicketsListUrl({
+    view: "all",
+    owner_id: ownerId,
+    status: "open,in_progress,on_hold,reopened",
+    list: "1",
+  });
+}
+
+export function buildOwnerOverdueTicketsUrl(ownerId: string): string {
+  return buildTicketsListUrl({ view: "overdue", owner_id: ownerId, list: "1" });
+}

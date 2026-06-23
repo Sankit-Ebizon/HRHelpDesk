@@ -8,9 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { USER_ROLE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { TicketOwnerListCards } from "@/components/ticket-owners/ticket-owner-list-cards";
-import { ExternalLink } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { canAccess } from "@/lib/auth";
-import { Plus } from "lucide-react";
 
 export default async function TicketOwnersPage() {
   const ctx = await getLayoutContext();
@@ -23,7 +22,7 @@ export default async function TicketOwnersPage() {
       <AppHeader title="Ticket Owners" profile={ctx.profile} />
       <PageContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          HR agents and managers who can be assigned tickets. Click to view their tickets.
+          HR agents and managers who can be assigned tickets. Click a name to view their profile.
         </p>
         <TicketOwnerListCards owners={owners} canCreate={canCreate} />
         <DataPanel className="hidden md:block">
@@ -41,8 +40,15 @@ export default async function TicketOwnersPage() {
             </TableHeader>
             <TableBody>
               {owners.map((owner) => (
-                <TableRow key={owner.id}>
-                  <TableCell className="font-medium text-foreground">{owner.full_name}</TableCell>
+                <TableRow key={owner.id} className="group">
+                  <TableCell>
+                    <Link
+                      href={`/ticket-owners/${owner.id}`}
+                      className="font-medium text-[#1a73b5] hover:underline"
+                    >
+                      {owner.full_name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{owner.email}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
@@ -65,12 +71,7 @@ export default async function TicketOwnersPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">{owner.total_tickets}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Link href={`/tickets?view=my_open&owner_id=${owner.id}`}>
-                        <Button variant="ghost" size="sm" aria-label="View tickets">
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                    <div className="flex items-center justify-end gap-1">
                       {canCreate && (
                         <Link href={`/tickets/new?owner_id=${owner.id}`}>
                           <Button variant="ghost" size="sm" aria-label="Create ticket for this owner">
@@ -78,6 +79,11 @@ export default async function TicketOwnersPage() {
                           </Button>
                         </Link>
                       )}
+                      <Link href={`/ticket-owners/${owner.id}`}>
+                        <Button variant="ghost" size="sm" aria-label="View profile">
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -160,14 +160,17 @@ export function NotificationPrefsForm({ saved }: NotificationPrefsFormProps) {
 
   async function handleSave() {
     setLoading(true);
-    const result = await runWithLoading(() => saveNotificationPreferences(prefs));
-    if (result && "error" in result) {
-      toast({ title: result.error, variant: "error" });
-    } else {
-      toast({ title: "Notification rules saved", variant: "success" });
-      router.refresh();
+    try {
+      const result = await runWithLoading(() => saveNotificationPreferences(prefs));
+      if (result && "error" in result) {
+        toast({ title: result.error, variant: "error" });
+      } else {
+        toast({ title: "Notification rules saved", variant: "success" });
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { resetGlobalLoading, setGlobalLoading, subscribeGlobalLoading } from "@/lib/loading-store";
+import { beginLoading, resetGlobalLoading, subscribeGlobalLoading } from "@/lib/loading-store";
+
+const NAV_LOADER_DELAY_MS = 120;
+const LOADER_SAFETY_TIMEOUT_MS = 15000;
 
 function shouldIgnoreHref(href: string) {
   const v = href.trim();
@@ -11,6 +14,19 @@ function shouldIgnoreHref(href: string) {
   if (v.startsWith("mailto:") || v.startsWith("tel:")) return true;
   if (v.startsWith("http://") || v.startsWith("https://")) return true;
   return false;
+}
+
+function resolveHref(href: string): string {
+  try {
+    const url = new URL(href, window.location.origin);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return href;
+  }
+}
+
+function currentLocation(pathname: string, searchKey: string): string {
+  return `${pathname}${searchKey ? `?${searchKey}` : ""}`;
 }
 
 function LoadingText() {
@@ -32,18 +48,30 @@ export function RouteLoadingOverlay() {
   const searchKey = searchParams.toString();
   const [visible, setVisible] = React.useState(false);
   const showTimerRef = React.useRef<number | null>(null);
+  const navStartedRef = React.useRef(false);
 
   const clearShowTimer = React.useCallback(() => {
-    if (showTimerRef.current) window.clearTimeout(showTimerRef.current);
-    showTimerRef.current = null;
+    if (showTimerRef.current !== null) {
+      window.clearTimeout(showTimerRef.current);
+      showTimerRef.current = null;
+    }
   }, []);
 
   React.useEffect(() => subscribeGlobalLoading(setVisible), []);
 
   React.useEffect(() => {
-    resetGlobalLoading();
     clearShowTimer();
+    navStartedRef.current = false;
+    resetGlobalLoading();
   }, [pathname, searchKey, clearShowTimer]);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    const safetyTimer = window.setTimeout(() => {
+      resetGlobalLoading();
+    }, LOADER_SAFETY_TIMEOUT_MS);
+    return () => window.clearTimeout(safetyTimer);
+  }, [visible]);
 
   React.useEffect(() => {
     const onClickCapture = (e: MouseEvent) => {
@@ -55,13 +83,24 @@ export function RouteLoadingOverlay() {
       if (link.getAttribute("data-no-loader") === "true") return;
       if (link.getAttribute("target") === "_blank") return;
       if (link.hasAttribute("download")) return;
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
       const href = link.getAttribute("href") || "";
       if (shouldIgnoreHref(href)) return;
       if (!href.startsWith("/")) return;
 
+      const destination = resolveHref(href);
+      const current = currentLocation(pathname, searchKey);
+      if (destination === current) return;
+
       clearShowTimer();
-      showTimerRef.current = window.setTimeout(() => setGlobalLoading(true), 120);
+      navStartedRef.current = true;
+      showTimerRef.current = window.setTimeout(() => {
+        if (navStartedRef.current) {
+          beginLoading();
+        }
+      }, NAV_LOADER_DELAY_MS);
     };
 
     document.addEventListener("click", onClickCapture, true);
@@ -69,7 +108,7 @@ export function RouteLoadingOverlay() {
       document.removeEventListener("click", onClickCapture, true);
       clearShowTimer();
     };
-  }, [clearShowTimer]);
+  }, [pathname, searchKey, clearShowTimer]);
 
   if (!visible) return null;
 

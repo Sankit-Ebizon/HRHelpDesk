@@ -33,7 +33,7 @@ export async function getTickets(
         .not("status", "eq", "closed");
       break;
     case "all":
-      query = query.not("status", "eq", "closed");
+      if (!filters.owner_id) query = query.not("status", "eq", "closed");
       break;
     case "closed":
       query = query.eq("status", "closed");
@@ -496,6 +496,52 @@ export async function getTicketOwnerStats() {
   );
 
   return stats;
+}
+
+const TICKET_OWNER_ROLES = ["administrator", "hr_manager", "hr_agent"] as const;
+
+export async function getTicketOwnerProfile(id: string) {
+  noStore();
+  const owner = await getUserById(id);
+  if (!owner) return null;
+  if (owner.status !== "active") return null;
+  if (!TICKET_OWNER_ROLES.includes(owner.role as (typeof TICKET_OWNER_ROLES)[number])) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const [openResult, totalResult, overdueResult, recentResult] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", id)
+      .in("status", ["open", "in_progress", "on_hold", "reopened"]),
+    supabase.from("tickets").select("id", { count: "exact", head: true }).eq("owner_id", id),
+    supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", id)
+      .lt("due_date", now)
+      .not("status", "eq", "closed"),
+    supabase
+      .from("tickets")
+      .select("id, ticket_number, subject, status, priority, created_at")
+      .eq("owner_id", id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  return {
+    owner,
+    stats: {
+      open: openResult.count || 0,
+      total: totalResult.count || 0,
+      overdue: overdueResult.count || 0,
+    },
+    recentTickets: recentResult.data || [],
+  };
 }
 
 export async function getSavedReports(userId: string) {

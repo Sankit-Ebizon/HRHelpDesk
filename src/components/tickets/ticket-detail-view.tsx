@@ -73,37 +73,49 @@ export function TicketDetailView({
     const content = type === "reply" ? replyContent : internalContent;
     if (!stripHtmlTags(content).trim()) return;
     setLoading(true);
-    await runWithLoading(() => addComment(ticket.id, content, type));
-    if (type === "reply") setReplyContent("");
-    else setInternalContent("");
-    setLoading(false);
+    try {
+      await runWithLoading(() => addComment(ticket.id, content, type));
+      if (type === "reply") setReplyContent("");
+      else setInternalContent("");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleUpdateTicket(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    await runWithLoading(() => updateTicket(ticket.id, formData));
-    setEditMode(false);
-    setLoading(false);
+    try {
+      const formData = new FormData(e.currentTarget);
+      await runWithLoading(() => updateTicket(ticket.id, formData));
+      setEditMode(false);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAddTimeLog(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    await runWithLoading(() => addTimeLog(ticket.id, formData));
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      const formData = new FormData(e.currentTarget);
+      await runWithLoading(() => addTimeLog(ticket.id, formData));
+      (e.target as HTMLFormElement).reset();
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleUpdateTimeLog(e: React.FormEvent<HTMLFormElement>, logId: string) {
     e.preventDefault();
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    await runWithLoading(() => updateTimeLog(logId, formData));
-    setEditingTimeLogId(null);
-    setLoading(false);
+    try {
+      const formData = new FormData(e.currentTarget);
+      await runWithLoading(() => updateTimeLog(logId, formData));
+      setEditingTimeLogId(null);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -112,8 +124,11 @@ export function TicketDetailView({
     const formData = new FormData();
     formData.append("file", file);
     setLoading(true);
-    await runWithLoading(() => uploadAttachment(ticket.id, formData));
-    setLoading(false);
+    try {
+      await runWithLoading(() => uploadAttachment(ticket.id, formData));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -140,7 +155,7 @@ export function TicketDetailView({
           </TabsTrigger>
           <TabsTrigger value="time-logs" className={tabTriggerClass}>
             {!isZoho && <Clock className="h-4 w-4 shrink-0" />}
-            {isZoho ? "Time Entry" : (
+            {isZoho ? `Time Entry (${timeLogs.length})` : (
               <>
                 <span className="hidden sm:inline">Time Logs ({timeLogs.length})</span>
                 <span className="sm:hidden">{timeLogs.length}</span>

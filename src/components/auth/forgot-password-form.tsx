@@ -23,13 +23,16 @@ export function ForgotPasswordForm() {
     setLoading(true);
     setError(null);
     setSuccess(null);
-    const result = await requestPasswordReset(new FormData(e.currentTarget));
-    if (result?.error) {
-      setError(result.error);
-    } else {
-      setSuccess("Password reset link sent. Check your email to set a new password.");
+    try {
+      const result = await requestPasswordReset(new FormData(e.currentTarget));
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setSuccess("Password reset link sent. Check your email to set a new password.");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

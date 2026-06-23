@@ -81,20 +81,23 @@ export function CustomReportBuilder({ dateFrom, dateTo, filters }: CustomReportB
     if (selectedFields.length === 0) return null;
 
     setLoading(true);
-    const config: CustomReportConfig = {
-      name: reportName.trim() || "Custom Report",
-      moduleId,
-      joinId: joinId || undefined,
-      fields: selectedFields,
-      dateFrom,
-      dateTo,
-      filters: moduleId === "tickets" ? filters : undefined,
-    };
+    try {
+      const config: CustomReportConfig = {
+        name: reportName.trim() || "Custom Report",
+        moduleId,
+        joinId: joinId || undefined,
+        fields: selectedFields,
+        dateFrom,
+        dateTo,
+        filters: moduleId === "tickets" ? filters : undefined,
+      };
 
-    const data = await runWithLoading(() => runCustomReportAction(config));
-    setResult(data);
-    setLoading(false);
-    return data;
+      const data = await runWithLoading(() => runCustomReportAction(config));
+      setResult(data);
+      return data;
+    } finally {
+      setLoading(false);
+    }
   }, [reportName, moduleId, joinId, selectedFields, dateFrom, dateTo, filters]);
 
   async function handleDownload() {

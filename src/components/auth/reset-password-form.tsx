@@ -18,9 +18,12 @@ export function ResetPasswordForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const result = await updatePassword(new FormData(e.currentTarget));
-    if (result?.error) {
-      setError(result.error);
+    try {
+      const result = await updatePassword(new FormData(e.currentTarget));
+      if (result?.error) {
+        setError(result.error);
+      }
+    } finally {
       setLoading(false);
     }
   }

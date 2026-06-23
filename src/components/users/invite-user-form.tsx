@@ -34,16 +34,19 @@ export function InviteUserForm({ departments, roles }: InviteUserFormProps) {
     setLoading(true);
     setError(null);
     setSuccess(false);
-    const formData = new FormData(e.currentTarget);
-    const result = await runWithLoading(() => inviteUser(formData));
-    if (result?.error) {
-      setError(result.error);
-    } else {
-      setSuccess(true);
-      (e.target as HTMLFormElement).reset();
-      router.refresh();
+    try {
+      const formData = new FormData(e.currentTarget);
+      const result = await runWithLoading(() => inviteUser(formData));
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setSuccess(true);
+        (e.target as HTMLFormElement).reset();
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

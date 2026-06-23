@@ -87,8 +87,11 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
 
   async function patch(overrides: Record<string, string | null | undefined>) {
     setLoading(true);
-    await runWithLoading(() => updateTicket(ticket.id, buildFormData(ticket, overrides)));
-    setLoading(false);
+    try {
+      await runWithLoading(() => updateTicket(ticket.id, buildFormData(ticket, overrides)));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
