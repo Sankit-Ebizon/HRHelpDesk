@@ -17,7 +17,7 @@ import type {
   TicketHistory,
   TicketView,
 } from "@/types";
-import { buildTicketsListUrl, type TicketSearchParams } from "@/lib/ticket-url";
+import { buildTicketViewListUrl, type TicketSearchParams } from "@/lib/ticket-url";
 
 interface TicketsWorkspaceProps {
   tickets: Ticket[];
@@ -112,7 +112,7 @@ export function TicketsWorkspace({
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
                   <div className="border-b border-border px-4 py-3 sm:px-5">
                     <div className="mb-2 lg:hidden">
-                      <Link href={buildTicketsListUrl({ ...currentFilters, list: "1" })}>
+                      <Link href={buildTicketViewListUrl(view)}>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-[13px] font-medium text-[#444] hover:text-[#222]">
                           <ArrowLeft className="mr-1 h-4 w-4" />
                           All tickets

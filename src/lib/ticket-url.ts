@@ -27,6 +27,14 @@ export function buildTicketsListUrl(params: TicketSearchParams): string {
   return `/tickets${buildTicketsQuery(params)}`;
 }
 
+export function buildTicketViewListUrl(view: string): string {
+  return `/tickets/views/${view}`;
+}
+
+export function buildTicketDetailFromViewUrl(ticketId: string, view: string): string {
+  return buildTicketDetailUrl(ticketId, { view });
+}
+
 export function buildOwnerTicketsUrl(ownerId: string): string {
   return buildTicketsListUrl({ view: "all", owner_id: ownerId, list: "1" });
 }

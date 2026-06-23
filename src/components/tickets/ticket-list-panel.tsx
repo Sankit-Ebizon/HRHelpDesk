@@ -7,7 +7,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn, formatTicketListDate, getInitials, getStatusColor } from "@/lib/utils";
 import { TICKET_STATUS_LABELS, TICKET_VIEWS, type Ticket, type TicketView } from "@/types";
-import { buildTicketDetailUrl, buildTicketsListUrl, type TicketSearchParams } from "@/lib/ticket-url";
+import { buildTicketDetailUrl, buildTicketViewListUrl, type TicketSearchParams } from "@/lib/ticket-url";
 import { TicketFilterPanel, countActiveFilters } from "@/components/tickets/ticket-filters";
 
 interface TicketListPanelProps {
@@ -57,7 +57,7 @@ export function TicketListPanel({
               {TICKET_VIEWS.map((v) => (
                 <DropdownMenu.Item key={v.id} asChild>
                   <Link
-                    href={buildTicketsListUrl({ ...currentFilters, view: v.id })}
+                    href={buildTicketViewListUrl(v.id)}
                     className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 text-[13px] font-medium text-[#222] outline-none hover:bg-[#f5f7f9] focus:bg-[#f5f7f9]"
                   >
                     <span>{v.label}</span>

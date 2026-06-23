@@ -10,12 +10,14 @@ import Link from "next/link";
 import { formatRelative, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+import { buildTicketViewListUrl } from "@/lib/ticket-url";
+
 const statConfig = [
-  { label: "My Open", valueKey: "my_open" as const, icon: Ticket, href: "/tickets?view=my_open", accent: "from-blue-500/15 to-transparent" },
-  { label: "Unassigned", valueKey: "unassigned" as const, icon: Inbox, href: "/tickets?view=unassigned", accent: "from-amber-500/15 to-transparent" },
-  { label: "Overdue", valueKey: "overdue" as const, icon: AlertTriangle, href: "/tickets?view=overdue", accent: "from-red-500/15 to-transparent" },
-  { label: "Closed", valueKey: "closed" as const, icon: CheckCircle, href: "/tickets?view=closed", accent: "from-emerald-500/15 to-transparent" },
-  { label: "Open Tickets", valueKey: "all" as const, icon: Clock, href: "/tickets?view=all", accent: "from-violet-500/15 to-transparent" },
+  { label: "My Open", valueKey: "my_open" as const, icon: Ticket, href: buildTicketViewListUrl("my_open"), accent: "from-blue-500/15 to-transparent" },
+  { label: "Unassigned", valueKey: "unassigned" as const, icon: Inbox, href: buildTicketViewListUrl("unassigned"), accent: "from-amber-500/15 to-transparent" },
+  { label: "Overdue", valueKey: "overdue" as const, icon: AlertTriangle, href: buildTicketViewListUrl("overdue"), accent: "from-red-500/15 to-transparent" },
+  { label: "Closed", valueKey: "closed" as const, icon: CheckCircle, href: buildTicketViewListUrl("closed"), accent: "from-emerald-500/15 to-transparent" },
+  { label: "Open Tickets", valueKey: "all" as const, icon: Clock, href: buildTicketViewListUrl("all"), accent: "from-violet-500/15 to-transparent" },
 ];
 
 export default async function DashboardPage() {

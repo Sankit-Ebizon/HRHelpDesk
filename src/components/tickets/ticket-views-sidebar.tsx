@@ -6,6 +6,7 @@ import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TICKET_VIEWS, type TicketView } from "@/types";
+import { buildTicketViewListUrl } from "@/lib/ticket-url";
 import { TicketFilterPanel, countActiveFilters } from "@/components/tickets/ticket-filters";
 
 interface TicketViewsSidebarProps {
@@ -53,7 +54,7 @@ export function TicketViewsSidebar({
         {TICKET_VIEWS.map((v) => (
           <Link
             key={v.id}
-            href={`/tickets?view=${v.id}`}
+            href={buildTicketViewListUrl(v.id)}
             className={cn(
               "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
               view === v.id
