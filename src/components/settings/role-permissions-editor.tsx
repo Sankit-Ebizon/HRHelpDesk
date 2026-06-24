@@ -3,18 +3,16 @@
 import { useRouter } from "next/navigation";
 import { updateRolePermission, updateRoleReportSection } from "@/lib/actions/settings";
 import { runWithLoading } from "@/lib/loading-store";
-import { ALL_REPORT_SECTIONS } from "@/lib/reports/sections";
+import { ALL_REPORT_SECTIONS, CUSTOM_REPORT_SECTION } from "@/lib/reports/sections";
+import {
+  getModulePermissionActions,
+  PERMISSION_ACTIONS,
+  type PermissionField,
+} from "@/lib/permission-actions";
 import { ZohoToggle } from "@/components/ui/zoho-toggle";
 import type { RolePermission, RoleReportSection } from "@/types";
 
-const ACTIONS = [
-  { key: "can_read", label: "Read" },
-  { key: "can_create", label: "Create" },
-  { key: "can_edit", label: "Edit" },
-  { key: "can_delete", label: "Delete" },
-] as const;
-
-type PermissionField = (typeof ACTIONS)[number]["key"];
+const ACTIONS = PERMISSION_ACTIONS;
 
 const PERMISSION_SECTIONS = [
   {
@@ -114,7 +112,9 @@ export function RolePermissionsEditor({
                     )}
                   </div>
                   <div className="divide-y divide-zinc-100">
-                    {ACTIONS.map((action) => (
+                    {ACTIONS.filter((action) =>
+                      getModulePermissionActions(slug).includes(action.key)
+                    ).map((action) => (
                       <div
                         key={action.key}
                         className="flex items-center justify-between px-3 py-2.5"
@@ -146,7 +146,7 @@ export function RolePermissionsEditor({
           Choose which report tabs are visible on the Reports page for this profile.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ALL_REPORT_SECTIONS.map((section) => {
+          {ALL_REPORT_SECTIONS.filter((section) => section.id !== CUSTOM_REPORT_SECTION).map((section) => {
             const visible = isReportSectionVisible(section.id);
             return (
               <div
