@@ -13,12 +13,17 @@ import {
   X,
   UserCheck,
   Command,
+  Mail,
+  Shield,
+  Building2,
+  Globe,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials, cn } from "@/lib/utils";
-import type { Profile } from "@/types";
+import { NotificationMenu } from "@/components/layout/notification-menu";
+import { getRoleLabel, USER_STATUS_LABELS, type Notification, type Profile, type UserStatus } from "@/types";
 import { useId, useState } from "react";
 import { usePathname } from "next/navigation";
 
@@ -61,8 +66,50 @@ function TopNavIconButton({
   );
 }
 
+function ProfileStatusBadge({ status }: { status: UserStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium leading-none",
+        status === "active" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+        status === "invited" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+        status === "rejected" && "bg-red-500/15 text-red-700 dark:text-red-300",
+        status === "inactive" && "bg-muted text-muted-foreground"
+      )}
+    >
+      {USER_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+function ProfileDetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-2.5 px-3 py-1.5">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/80">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 function ProfileMenu({ profile }: { profile: Profile }) {
   const logoutFormId = useId();
+  const roleLabel = getRoleLabel(profile.role);
+  const departmentName = profile.department?.name;
 
   return (
     <>
@@ -91,15 +138,39 @@ function ProfileMenu({ profile }: { profile: Profile }) {
           <DropdownMenu.Content
             align="end"
             sideOffset={8}
-            className="z-50 min-w-[220px] rounded-xl glass-panel p-1.5 shadow-elevated animate-in fade-in-0 zoom-in-95"
+            className="z-50 w-[280px] rounded-xl glass-panel p-1.5 shadow-elevated animate-in fade-in-0 zoom-in-95"
           >
-            <div className="px-3 py-2.5">
-              <p className="text-sm font-semibold leading-none">{profile.full_name}</p>
-              <p className="mt-1 text-2xs capitalize text-muted-foreground">
-                {profile.role.replace("_", " ")}
-              </p>
+            <div className="flex items-start gap-3 px-3 py-3">
+              <Avatar className="h-11 w-11 shrink-0 ring-2 ring-border/50">
+                <AvatarFallback className="bg-indigo-500 text-sm text-white">
+                  {getInitials(profile.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="truncate text-sm font-semibold leading-tight text-foreground">
+                  {profile.full_name}
+                </p>
+                <div className="mt-1.5">
+                  <ProfileStatusBadge status={profile.status} />
+                </div>
+              </div>
             </div>
+
             <DropdownMenu.Separator className="my-1 h-px subtle-divider" />
+
+            <div className="py-1">
+              <ProfileDetailRow icon={Mail} label="Email" value={profile.email} />
+              <ProfileDetailRow icon={Shield} label="Role" value={roleLabel} />
+              {departmentName && (
+                <ProfileDetailRow icon={Building2} label="Department" value={departmentName} />
+              )}
+              {profile.timezone && (
+                <ProfileDetailRow icon={Globe} label="Timezone" value={profile.timezone} />
+              )}
+            </div>
+
+            <DropdownMenu.Separator className="my-1 h-px subtle-divider" />
+
             <DropdownMenu.Item
               onSelect={(e) => {
                 e.preventDefault();
@@ -119,10 +190,13 @@ function ProfileMenu({ profile }: { profile: Profile }) {
 
 export function AppTopNav({
   profile,
+  notifications,
+  unreadCount = 0,
   openTicketCount,
   showSettings = false,
 }: {
   profile: Profile;
+  notifications: Notification[];
   unreadCount?: number;
   openTicketCount: number;
   showSettings?: boolean;
@@ -188,6 +262,12 @@ export function AppTopNav({
             <span className="mr-1 hidden text-xs text-white/60 xl:inline">
               Helpdesk Support
             </span>
+
+            <NotificationMenu
+              notifications={notifications}
+              unreadCount={unreadCount}
+              userId={profile.id}
+            />
 
             {showSettings && (
               <Link

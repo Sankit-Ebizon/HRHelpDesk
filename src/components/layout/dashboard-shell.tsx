@@ -1,5 +1,5 @@
 import { getCurrentProfile, getUserPermissions, canAccess } from "@/lib/auth";
-import { getTicketCounts, getUnreadNotificationCount } from "@/lib/queries";
+import { getNotifications, getTicketCounts, getUnreadNotificationCount } from "@/lib/queries";
 import { AppTopNav, topNavHeight } from "@/components/layout/sidebar";
 import { ProfileMissingFallback } from "@/components/layout/profile-missing-fallback";
 
@@ -9,8 +9,9 @@ export async function DashboardShell({ children }: { children: React.ReactNode }
     return <ProfileMissingFallback />;
   }
 
-  const [unreadCount, ticketCounts, permissions] = await Promise.all([
+  const [unreadCount, notifications, ticketCounts, permissions] = await Promise.all([
     getUnreadNotificationCount(profile.id),
+    getNotifications(profile.id, 30),
     getTicketCounts(profile.id),
     getUserPermissions(profile.role),
   ]);
@@ -21,6 +22,7 @@ export async function DashboardShell({ children }: { children: React.ReactNode }
     <div className="relative min-h-screen gradient-mesh noise-overlay">
       <AppTopNav
         profile={profile}
+        notifications={notifications}
         unreadCount={unreadCount}
         openTicketCount={openTicketCount}
         showSettings={showSettings}

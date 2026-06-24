@@ -624,6 +624,7 @@ export async function markNotificationRead(notificationId: string) {
     .update({ is_read: true })
     .eq("id", notificationId);
   revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
 }
 
 export async function markAllNotificationsRead(userId: string) {
@@ -634,4 +635,5 @@ export async function markAllNotificationsRead(userId: string) {
     .eq("user_id", userId)
     .eq("is_read", false);
   revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
 }
