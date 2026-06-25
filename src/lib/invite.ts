@@ -89,7 +89,7 @@ export function buildInviteEmailHtml(params: {
               </p>
               <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3f3f46;">
                 <strong>${params.inviterName}</strong> has invited you to join HR Helpdesk as <strong>${roleLabel}</strong>.
-                Accept the invitation, then use <strong>Forgot password</strong> on the login page to create your password.
+                Accept the invitation to set your password and sign in.
               </p>
               <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
                 <tr>

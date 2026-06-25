@@ -38,7 +38,11 @@ export async function requestPasswordReset(formData: FormData) {
   return { success: true };
 }
 
-export async function updatePassword(formData: FormData) {
+export async function updatePassword(
+  formData: FormData,
+  successMessage = "Password set successfully. Sign in with your new password.",
+  emailOverride?: string
+) {
   const supabase = await createClient();
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirm_password") as string;
@@ -56,11 +60,10 @@ export async function updatePassword(formData: FormData) {
     await activateProfileOnLogin(data.user.id);
   }
 
+  const email = emailOverride || data.user?.email || "";
   await supabase.auth.signOut();
   redirect(
-    `/login?email=${encodeURIComponent(data.user?.email || "")}&message=${encodeURIComponent(
-      "Password set successfully. Sign in with your new password."
-    )}`
+    `/login?email=${encodeURIComponent(email)}&message=${encodeURIComponent(successMessage)}`
   );
 }
 

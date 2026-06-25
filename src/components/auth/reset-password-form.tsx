@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { updatePassword } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Command, Loader2 } from "lucide-react";
 
-export function ResetPasswordForm() {
+interface ResetPasswordFormProps {
+  email?: string;
+  title?: string;
+  description?: string;
+  successMessage?: string;
+}
+
+export function ResetPasswordForm({
+  email: emailProp,
+  title = "Reset your password",
+  description = "Create a new password for your HR Helpdesk account.",
+  successMessage = "Password updated successfully. Sign in with your new password.",
+}: ResetPasswordFormProps) {
+  const searchParams = useSearchParams();
+  const email = emailProp || searchParams.get("email") || "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +34,7 @@ export function ResetPasswordForm() {
     setLoading(true);
     setError(null);
     try {
-      const result = await updatePassword(new FormData(e.currentTarget));
+      const result = await updatePassword(new FormData(e.currentTarget), successMessage, email);
       if (result?.error) {
         setError(result.error);
       }
@@ -35,10 +50,15 @@ export function ResetPasswordForm() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary shadow-glow">
             <Command className="h-5 w-5 text-primary-foreground" />
           </div>
-          <CardTitle>Set your password</CardTitle>
-          <CardDescription>Create a password for your HR Helpdesk account.</CardDescription>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>
+          {email && (
+            <p className="mb-4 text-center text-sm text-muted-foreground">
+              Setting password for <span className="font-medium text-foreground">{email}</span>
+            </p>
+          )}
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
@@ -71,7 +91,10 @@ export function ResetPasswordForm() {
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            <Link href="/login" className="font-medium text-primary hover:text-primary/80">
+            <Link
+              href={`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+              className="font-medium text-primary hover:text-primary/80"
+            >
               Back to login
             </Link>
           </p>

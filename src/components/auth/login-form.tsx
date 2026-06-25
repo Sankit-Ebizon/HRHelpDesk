@@ -22,7 +22,6 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
   const searchParams = useSearchParams();
   const message = searchParams.get("message");
   const defaultEmail = searchParams.get("email") || "";
-  const invited = searchParams.get("invited") === "1";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -86,14 +85,8 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
             <div className="lg:hidden mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary shadow-glow">
               <Command className="h-5 w-5 text-primary-foreground" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              {invited ? "Set up your account" : "Welcome back"}
-            </CardTitle>
-            <CardDescription>
-              {invited
-                ? "Use Forgot password to create your password, then sign in."
-                : "Sign in to your workspace"}
-            </CardDescription>
+            <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
+            <CardDescription>Sign in to your workspace</CardDescription>
           </CardHeader>
           <CardContent>
             {message && (

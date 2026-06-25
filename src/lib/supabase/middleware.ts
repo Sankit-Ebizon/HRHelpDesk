@@ -33,7 +33,8 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup") ||
     request.nextUrl.pathname.startsWith("/forgot-password") ||
-    request.nextUrl.pathname.startsWith("/reset-password");
+    request.nextUrl.pathname.startsWith("/reset-password") ||
+    request.nextUrl.pathname.startsWith("/set-password");
   const isPublicPage =
     request.nextUrl.pathname.startsWith("/track") ||
     request.nextUrl.pathname.startsWith("/api/webhooks") ||
@@ -48,12 +49,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
-    const isInviteSetup =
-      request.nextUrl.pathname.startsWith("/login") &&
-      request.nextUrl.searchParams.get("invited") === "1";
-    const isResetPasswordFlow = request.nextUrl.pathname.startsWith("/reset-password");
+    const isResetPasswordFlow =
+      request.nextUrl.pathname.startsWith("/reset-password") ||
+      request.nextUrl.pathname.startsWith("/set-password");
 
-    if (!isInviteSetup && !isResetPasswordFlow) {
+    if (!isResetPasswordFlow) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
