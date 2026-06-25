@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const ACTIONS = ["can_read", "can_create", "can_edit", "can_delete"] as const;
 
-const stickyCell = "sticky left-0 z-10 sticky-panel-cell shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.4)]";
+const stickyCell = "sticky left-0 z-10 sticky-panel-cell shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)]";
 
 interface PermissionsMatrixProps {
   permissions: RolePermission[];

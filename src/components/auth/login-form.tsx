@@ -12,7 +12,6 @@ import { useEffect, useState } from "react";
 import { Loader2, Command } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { HRDashboardIllustration } from "@/components/illustrations/hr-dashboard-hero";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 interface LoginFormProps {
   supportEmail: string;
@@ -46,9 +45,6 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
 
   return (
     <div className="relative min-h-screen flex gradient-mesh noise-overlay">
-      <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
-        <ThemeToggle />
-      </div>
       {/* Left panel — brand */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-border">
         <div className="flex items-center gap-3">

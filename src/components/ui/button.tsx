@@ -18,9 +18,9 @@ const buttonVariants = cva(
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-border bg-card text-[#222] hover:bg-muted/60",
         secondary: "bg-secondary text-[#222] hover:bg-secondary/80",
-        ghost: "text-[#444] hover:bg-muted/60 hover:text-[#222] dark:hover:bg-white/[0.05]",
+        ghost: "text-[#444] hover:bg-muted/60 hover:text-[#222]",
         link: "text-primary underline-offset-4 hover:underline p-0 h-auto",
-        glass: "glass-card text-foreground hover:bg-muted/40 dark:hover:bg-white/[0.06]",
+        glass: "glass-card text-foreground hover:bg-muted/40",
       },
       size: {
         default: "h-8 px-4 py-2",

@@ -71,9 +71,9 @@ function ProfileStatusBadge({ status }: { status: UserStatus }) {
     <span
       className={cn(
         "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium leading-none",
-        status === "active" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-        status === "invited" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-        status === "rejected" && "bg-red-500/15 text-red-700 dark:text-red-300",
+        status === "active" && "bg-emerald-500/15 text-emerald-700",
+        status === "invited" && "bg-amber-500/15 text-amber-700",
+        status === "rejected" && "bg-red-500/15 text-red-700",
         status === "inactive" && "bg-muted text-muted-foreground"
       )}
     >

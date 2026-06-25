@@ -63,21 +63,21 @@ export function getInitials(name: string): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    open: "bg-blue-500/15 text-blue-700 ring-1 ring-inset ring-blue-500/25 dark:text-blue-300",
-    in_progress: "bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25 dark:text-amber-300",
-    on_hold: "bg-violet-500/15 text-violet-700 ring-1 ring-inset ring-violet-500/25 dark:text-violet-300",
-    closed: "bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/25 dark:text-emerald-300",
-    reopened: "bg-orange-500/15 text-orange-700 ring-1 ring-inset ring-orange-500/25 dark:text-orange-300",
+    open: "bg-blue-500/15 text-blue-700 ring-1 ring-inset ring-blue-500/25",
+    in_progress: "bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25",
+    on_hold: "bg-violet-500/15 text-violet-700 ring-1 ring-inset ring-violet-500/25",
+    closed: "bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/25",
+    reopened: "bg-orange-500/15 text-orange-700 ring-1 ring-inset ring-orange-500/25",
   };
   return colors[status] || "bg-muted text-muted-foreground ring-1 ring-inset ring-border";
 }
 
 export function getPriorityColor(priority: string): string {
   const colors: Record<string, string> = {
-    low: "bg-slate-500/15 text-slate-600 ring-1 ring-inset ring-slate-500/25 dark:text-slate-300",
-    medium: "bg-indigo-500/15 text-indigo-700 ring-1 ring-inset ring-indigo-500/25 dark:text-indigo-300",
-    high: "bg-orange-500/15 text-orange-700 ring-1 ring-inset ring-orange-500/25 dark:text-orange-300",
-    urgent: "bg-red-500/15 text-red-700 ring-1 ring-inset ring-red-500/25 dark:text-red-300",
+    low: "bg-slate-500/15 text-slate-600 ring-1 ring-inset ring-slate-500/25",
+    medium: "bg-indigo-500/15 text-indigo-700 ring-1 ring-inset ring-indigo-500/25",
+    high: "bg-orange-500/15 text-orange-700 ring-1 ring-inset ring-orange-500/25",
+    urgent: "bg-red-500/15 text-red-700 ring-1 ring-inset ring-red-500/25",
   };
   return colors[priority] || "bg-muted text-muted-foreground ring-1 ring-inset ring-border";
 }

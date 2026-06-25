@@ -58,7 +58,7 @@ export function TicketViewsSidebar({
             className={cn(
               "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
               view === v.id
-                ? "bg-primary/10 text-primary font-medium ring-1 ring-primary/20 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/20"
+                ? "bg-primary/10 text-primary font-medium ring-1 ring-primary/20"
                 : "text-muted-foreground surface-hover hover:text-foreground"
             )}
           >
@@ -67,7 +67,7 @@ export function TicketViewsSidebar({
               className={cn(
                 "text-2xs font-semibold tabular-nums rounded-lg px-2 py-0.5",
                 view === v.id
-                  ? "bg-primary/15 text-primary dark:bg-indigo-500/20 dark:text-indigo-300"
+                  ? "bg-primary/15 text-primary"
                   : "bg-muted text-muted-foreground"
               )}
             >

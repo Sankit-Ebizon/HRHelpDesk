@@ -150,7 +150,7 @@ export function NotificationMenu({
                             {notification.title}
                           </p>
                           {!notification.is_read && (
-                            <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-300">
+                            <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
                               New
                             </span>
                           )}

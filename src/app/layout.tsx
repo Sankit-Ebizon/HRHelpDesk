@@ -4,7 +4,6 @@ import { Lato } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { RouteLoadingOverlay } from "@/components/ui/route-loading-overlay";
-import { ThemeProvider } from "@/components/theme-provider";
 
 const lato = Lato({
   subsets: ["latin"],
@@ -24,15 +23,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={lato.variable} suppressHydrationWarning>
+    <html lang="en" className={lato.variable}>
       <body className="font-sans bg-background text-foreground antialiased">
-        <ThemeProvider>
-          {children}
-          <Toaster />
-          <Suspense fallback={null}>
-            <RouteLoadingOverlay />
-          </Suspense>
-        </ThemeProvider>
+        {children}
+        <Toaster />
+        <Suspense fallback={null}>
+          <RouteLoadingOverlay />
+        </Suspense>
       </body>
     </html>
   );
