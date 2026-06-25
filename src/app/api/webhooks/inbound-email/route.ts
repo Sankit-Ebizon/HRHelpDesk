@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
 import { sendEmailNotification } from "@/lib/email";
+import {
+  fetchResendReceivedEmail,
+  isResendWebhook,
+  resendEventToInboundPayload,
+  verifyResendWebhook,
+} from "@/lib/resend-webhook";
 
 interface InboundEmailPayload {
   from: string;
@@ -35,7 +41,6 @@ async function parsePayload(request: NextRequest): Promise<InboundEmailPayload |
     }
   }
 
-  // Mailgun / SendGrid inbound (form-urlencoded or multipart)
   try {
     const form = await request.formData();
     const sender = (form.get("sender") || form.get("from") || "") as string;
@@ -58,10 +63,9 @@ function isAuthorized(request: NextRequest): boolean {
   const secret = request.headers.get("x-webhook-secret");
   if (secret && secret === process.env.INBOUND_EMAIL_WEBHOOK_SECRET) return true;
 
-  // Mailgun signature verification (optional HMAC)
   const mailgunToken = request.headers.get("x-mailgun-token");
   if (mailgunToken && process.env.MAILGUN_WEBHOOK_SIGNING_KEY) {
-    return true; // Mailgun routes should also set x-webhook-secret
+    return true;
   }
 
   return false;
@@ -159,7 +163,38 @@ async function createTicketFromEmail(payload: InboundEmailPayload) {
   return { success: true, ticket_number: ticket.ticket_number, status: 200 };
 }
 
+async function handleResendWebhook(request: NextRequest) {
+  const rawBody = await request.text();
+  const event = verifyResendWebhook(rawBody, request.headers);
+
+  if (!event) {
+    return NextResponse.json({ error: "Invalid Resend webhook signature" }, { status: 401 });
+  }
+
+  if (event.type !== "email.received") {
+    return NextResponse.json({ ok: true });
+  }
+
+  const email = await fetchResendReceivedEmail(event.data.email_id);
+  if (!email) {
+    return NextResponse.json({ error: "Failed to fetch email content" }, { status: 500 });
+  }
+
+  const payload = resendEventToInboundPayload(event, email);
+  const result = await createTicketFromEmail(payload);
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  return NextResponse.json({ success: true, ticket_number: result.ticket_number });
+}
+
 export async function POST(request: NextRequest) {
+  if (isResendWebhook(request.headers)) {
+    return handleResendWebhook(request);
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
