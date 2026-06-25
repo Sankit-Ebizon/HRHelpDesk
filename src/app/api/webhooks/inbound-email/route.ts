@@ -3,9 +3,13 @@ import { createServiceClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
 import { sendEmailNotification } from "@/lib/email";
 import {
+  downloadResendAttachment,
+  fetchResendAttachments,
   fetchResendReceivedEmail,
   isResendWebhook,
+  parseNameFromFromHeader,
   resendEventToInboundPayload,
+  stripDisplayQuotes,
   verifyResendWebhook,
 } from "@/lib/resend-webhook";
 
@@ -24,10 +28,8 @@ function extractEmailAddress(from: string): string {
 }
 
 function extractName(from: string, fromName?: string): string {
-  if (fromName) return fromName;
-  const match = from.match(/^([^<]+)</);
-  if (match) return match[1].trim();
-  return from.split("@")[0];
+  if (fromName) return stripDisplayQuotes(fromName);
+  return parseNameFromFromHeader(from);
 }
 
 async function parsePayload(request: NextRequest): Promise<InboundEmailPayload | null> {
@@ -71,7 +73,46 @@ function isAuthorized(request: NextRequest): boolean {
   return false;
 }
 
-async function createTicketFromEmail(payload: InboundEmailPayload) {
+async function saveInboundAttachments(ticketId: string, resendEmailId: string) {
+  const supabase = createServiceClient();
+  const attachments = await fetchResendAttachments(resendEmailId);
+
+  for (const attachment of attachments) {
+    const downloaded = await downloadResendAttachment(resendEmailId, attachment);
+    if (!downloaded) continue;
+
+    const safeName = downloaded.filename.replace(/[^\w.-]/g, "_");
+    const filePath = `${ticketId}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("ticket-attachments")
+      .upload(filePath, downloaded.buffer, {
+        contentType: downloaded.contentType,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Attachment upload failed:", uploadError);
+      continue;
+    }
+
+    const { error: insertError } = await supabase.from("ticket_attachments").insert({
+      ticket_id: ticketId,
+      file_name: downloaded.filename,
+      file_path: filePath,
+      file_size: downloaded.size,
+      mime_type: downloaded.contentType,
+    });
+
+    if (insertError) {
+      console.error("Attachment record failed:", insertError);
+    }
+  }
+}
+
+async function createTicketFromEmail(
+  payload: InboundEmailPayload,
+  options?: { resendEmailId?: string }
+) {
   const supabase = createServiceClient();
   const { data: supportSetting } = await supabase
     .from("app_settings")
@@ -132,14 +173,9 @@ async function createTicketFromEmail(payload: InboundEmailPayload) {
     return { error: "Failed to create ticket", status: 500 };
   }
 
-  await supabase.from("ticket_comments").insert({
-    ticket_id: ticket.id,
-    author_name: contactName,
-    author_email: contactEmail,
-    content: description,
-    comment_type: "reply",
-    is_from_contact: true,
-  });
+  if (options?.resendEmailId) {
+    await saveInboundAttachments(ticket.id, options.resendEmailId);
+  }
 
   await createNotification({
     type: "ticket_created",
@@ -181,7 +217,7 @@ async function handleResendWebhook(request: NextRequest) {
   }
 
   const payload = resendEventToInboundPayload(event, email);
-  const result = await createTicketFromEmail(payload);
+  const result = await createTicketFromEmail(payload, { resendEmailId: event.data.email_id });
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status });
