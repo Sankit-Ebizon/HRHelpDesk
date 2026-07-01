@@ -18,11 +18,15 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronLeft, ChevronRight, Download, Play } from "lucide-react";
+import { ScheduleReportDialog } from "@/components/reports/schedule-report-dialog";
+import type { RecipientOption } from "@/components/reports/recipient-email-multi-select";
 
 interface CustomReportBuilderProps {
   dateFrom: string;
   dateTo: string;
   filters?: ReportFilters;
+  canSchedule?: boolean;
+  recipientOptions?: RecipientOption[];
 }
 
 function formatCellValue(value: unknown): string {
@@ -30,7 +34,13 @@ function formatCellValue(value: unknown): string {
   return String(value);
 }
 
-export function CustomReportBuilder({ dateFrom, dateTo, filters }: CustomReportBuilderProps) {
+export function CustomReportBuilder({
+  dateFrom,
+  dateTo,
+  filters,
+  canSchedule = false,
+  recipientOptions = [],
+}: CustomReportBuilderProps) {
   const [reportName, setReportName] = useState("Custom Report");
   const [moduleId, setModuleId] = useState(REPORT_MODULES[0].id);
   const [joinId, setJoinId] = useState<string>("");
@@ -106,6 +116,19 @@ export function CustomReportBuilder({ dateFrom, dateTo, filters }: CustomReportB
       downloadReportAsExcel(reportName, data);
     }
   }
+
+  const customConfig: CustomReportConfig | undefined =
+    selectedFields.length > 0
+      ? {
+          name: reportName.trim() || "Custom Report",
+          moduleId,
+          joinId: joinId || undefined,
+          fields: selectedFields,
+          dateFrom,
+          dateTo,
+          filters: moduleId === "tickets" ? filters : undefined,
+        }
+      : undefined;
 
   return (
     <div className="space-y-6">
@@ -244,6 +267,16 @@ export function CustomReportBuilder({ dateFrom, dateTo, filters }: CustomReportB
           <Download className="h-4 w-4 mr-2" />
           Download Excel
         </Button>
+        {canSchedule && customConfig && (
+          <ScheduleReportDialog
+            reportName={customConfig.name}
+            reportKind="custom"
+            customConfig={customConfig}
+            filters={filters}
+            usesDateRange
+            recipientOptions={recipientOptions}
+          />
+        )}
       </div>
 
       {loading ? (

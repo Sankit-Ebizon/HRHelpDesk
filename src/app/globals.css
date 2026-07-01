@@ -139,6 +139,89 @@
   .zoho-tickets .text-muted-foreground {
     color: hsl(var(--muted-foreground));
   }
+
+  .zoho-tickets .email-html-content {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #222;
+    overflow-x: auto;
+    word-break: break-word;
+  }
+
+  .zoho-tickets .email-html-content table {
+    border-collapse: collapse;
+    border-spacing: 0;
+    max-width: 100%;
+  }
+
+  .zoho-tickets .email-html-content tr {
+    display: table-row;
+  }
+
+  .zoho-tickets .email-html-content td,
+  .zoho-tickets .email-html-content th {
+    display: table-cell;
+    vertical-align: top;
+    padding: 0;
+  }
+
+  .zoho-tickets .email-html-content p {
+    margin: 0;
+    padding: 0;
+  }
+
+  .zoho-tickets .email-html-content .email-plain-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .zoho-tickets .email-html-content img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .zoho-tickets .email-html-signature img,
+  .zoho-tickets .email-html-content .email-signature-block img {
+    width: 72px !important;
+    height: 72px !important;
+    max-width: 72px !important;
+    max-height: 72px !important;
+    object-fit: cover;
+    border-radius: 2px;
+  }
+
+  .zoho-tickets .email-html-content a {
+    color: #1a73b5;
+    text-decoration: none;
+  }
+
+  .zoho-tickets .email-html-content a:hover {
+    text-decoration: underline;
+  }
+
+  .zoho-tickets .email-html-content hr {
+    border: none;
+    border-top: 1px solid #d9d9d9;
+    margin: 10px 0;
+  }
+
+  .zoho-tickets .email-html-signature {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .zoho-tickets .email-html-content .email-signature-block {
+    margin-top: 0;
+  }
+
+  .zoho-tickets .email-quoted-thread {
+    color: #555;
+  }
+
+  .zoho-tickets .email-quoted-thread .email-signature-block {
+    opacity: 0.92;
+  }
 }
 
 @layer utilities {

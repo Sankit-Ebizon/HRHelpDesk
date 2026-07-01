@@ -8,6 +8,8 @@ interface CreateNotificationParams {
   message: string;
   targetUserId?: string;
   excludeUserId?: string;
+  /** When false, only creates in-app notifications (no agent email). */
+  emailEnabled?: boolean;
 }
 
 type PrefRow = {
@@ -74,8 +76,10 @@ export async function createNotification(params: CreateNotificationParams) {
     .select("id, email")
     .in("id", userIds);
 
+  const sendEmail = params.emailEnabled !== false;
+
   for (const user of users || []) {
-    if (!isNotificationEnabled(prefs, user.id, "email_enabled")) continue;
+    if (!sendEmail || !isNotificationEnabled(prefs, user.id, "email_enabled")) continue;
 
     await sendEmailNotification({
       to: user.email,

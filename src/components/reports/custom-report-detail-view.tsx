@@ -17,6 +17,7 @@ import {
 import { Search } from "lucide-react";
 import { OwnerMultiSelect } from "@/components/reports/owner-multi-select";
 import { CustomReportBuilder } from "@/components/reports/custom-report-builder";
+import type { RecipientOption } from "@/components/reports/recipient-email-multi-select";
 import { ReportDetailHeader } from "@/components/reports/report-detail-header";
 
 function buildFilters(
@@ -39,12 +40,16 @@ interface CustomReportDetailViewProps {
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  canSchedule?: boolean;
+  recipientOptions?: RecipientOption[];
 }
 
 export function CustomReportDetailView({
   agents,
   categories,
   departments,
+  canSchedule = false,
+  recipientOptions = [],
 }: CustomReportDetailViewProps) {
   const defaultRange = getDefaultDateRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.dateFrom);
@@ -178,6 +183,8 @@ export function CustomReportDetailView({
           dateFrom={appliedDateFrom}
           dateTo={appliedDateTo}
           filters={appliedFilters}
+          canSchedule={canSchedule}
+          recipientOptions={recipientOptions}
         />
       </div>
     </div>

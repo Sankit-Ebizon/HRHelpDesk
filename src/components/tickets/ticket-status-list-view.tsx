@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Mail, Ticket as TicketIcon } from "lucide-react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Mail, Pencil, Ticket as TicketIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { DeleteCustomViewButton } from "@/components/tickets/custom-view-dialog";
+import { TicketViewsDropdown } from "@/components/tickets/ticket-views-dropdown";
 import {
   cn,
   formatDate,
@@ -16,58 +18,58 @@ import {
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
   TICKET_VIEWS,
+  type SavedTicketView,
   type Ticket,
   type TicketView,
 } from "@/types";
-import { buildTicketDetailFromViewUrl, buildTicketViewListUrl } from "@/lib/ticket-url";
+import {
+  buildTicketDetailFromViewUrl,
+  buildTicketDetailUrl,
+  type TicketSearchParams,
+} from "@/lib/ticket-url";
 
 interface TicketStatusListViewProps {
   tickets: Ticket[];
   view: TicketView;
   viewCounts: Record<TicketView, number>;
+  currentFilters: TicketSearchParams;
+  savedViews?: SavedTicketView[];
+  starredSystemViews?: TicketView[];
+  activeCustomView?: SavedTicketView | null;
 }
 
 export function TicketStatusListView({
   tickets,
   view,
   viewCounts,
+  currentFilters,
+  savedViews = [],
+  starredSystemViews = [],
+  activeCustomView,
 }: TicketStatusListViewProps) {
   const currentView = TICKET_VIEWS.find((item) => item.id === view) ?? TICKET_VIEWS[2];
+  const title = activeCustomView?.name ?? currentView.label;
+
+  function ticketHref(ticketId: string) {
+    if (activeCustomView && currentFilters) {
+      return buildTicketDetailUrl(ticketId, currentFilters);
+    }
+    return buildTicketDetailFromViewUrl(ticketId, view);
+  }
 
   return (
-    <div className="min-h-full bg-white">
+    <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button
-                type="button"
-                className="flex min-w-0 items-center gap-1.5 text-left text-[15px] font-semibold text-[#222]"
-              >
-                <span className="truncate">{currentView.label}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-[#555]" />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                align="start"
-                sideOffset={4}
-                className="z-50 min-w-[14rem] rounded border border-border bg-white p-1 shadow-md"
-              >
-                {TICKET_VIEWS.map((item) => (
-                  <DropdownMenu.Item key={item.id} asChild>
-                    <Link
-                      href={buildTicketViewListUrl(item.id)}
-                      className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 text-[13px] font-medium text-[#222] outline-none hover:bg-[#f5f7f9] focus:bg-[#f5f7f9]"
-                    >
-                      <span>{item.label}</span>
-                      <span className="text-xs tabular-nums text-[#555]">{viewCounts[item.id]}</span>
-                    </Link>
-                  </DropdownMenu.Item>
-                ))}
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          <TicketViewsDropdown
+            view={view}
+            viewCounts={viewCounts}
+            currentFilters={currentFilters}
+            savedViews={savedViews}
+            starredSystemViews={starredSystemViews}
+            activeCustomView={activeCustomView}
+            variant="status-list"
+          />
         </div>
 
         <div className="flex items-center gap-3">
@@ -77,16 +79,28 @@ export function TicketStatusListView({
         </div>
       </div>
 
+      {activeCustomView && (
+        <div className="flex items-center gap-1 border-b border-border px-4 py-1.5 sm:px-6">
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
+            <Link href={`/tickets/views/custom/${activeCustomView.id}/edit`}>
+              <Pencil className="mr-1 h-3 w-3" />
+              Edit
+            </Link>
+          </Button>
+          <DeleteCustomViewButton view={activeCustomView} />
+        </div>
+      )}
+
       {tickets.length === 0 ? (
-        <div className="p-8">
+        <div className="flex-1 overflow-y-auto p-8">
           <EmptyState
             icon={TicketIcon}
-            title={`No ${currentView.label.toLowerCase()}`}
-            description={currentView.description}
+            title={`No ${title.toLowerCase()}`}
+            description={activeCustomView ? "No tickets match this custom view." : currentView.description}
           />
         </div>
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
           {tickets.map((ticket) => {
             const isOverdue =
               ticket.due_date &&
@@ -96,7 +110,7 @@ export function TicketStatusListView({
             return (
               <li key={ticket.id}>
                 <Link
-                  href={buildTicketDetailFromViewUrl(ticket.id, view)}
+                  href={ticketHref(ticket.id)}
                   className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f8fbff] sm:px-6 sm:py-3.5"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8eef5] text-[#444]">
@@ -146,16 +160,23 @@ export function TicketStatusListView({
                         {TICKET_PRIORITY_LABELS[ticket.priority]}
                       </span>
                     </div>
-                    {ticket.owner ? (
-                      <span
-                        className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e8eef5] text-[10px] font-semibold text-[#333]"
-                        title={ticket.owner.full_name}
-                      >
-                        {getInitials(ticket.owner.full_name).charAt(0)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-medium text-[#888]">—</span>
-                    )}
+                    <div className="flex min-w-[7rem] items-center gap-1.5">
+                      {ticket.owner ? (
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8eef5] text-[10px] font-semibold text-[#333]"
+                            title={ticket.owner.full_name}
+                          >
+                            {getInitials(ticket.owner.full_name).charAt(0)}
+                          </span>
+                          <span className="truncate text-[12px] font-medium text-[#333]">
+                            {ticket.owner.full_name}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-[12px] font-medium text-[#888]">Not assigned yet</span>
+                      )}
+                    </div>
                   </div>
                 </Link>
               </li>

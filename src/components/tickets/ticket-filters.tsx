@@ -12,25 +12,47 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, X } from "lucide-react";
-import { TICKET_STATUS_LABELS, TICKET_PRIORITY_LABELS } from "@/types";
+import { TICKET_STATUS_LABELS, TICKET_PRIORITY_LABELS, type TicketFilters, type TicketView } from "@/types";
+import type { TicketSearchParams } from "@/lib/ticket-url";
 import { useState } from "react";
 
 interface TicketFilterPanelProps {
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
   currentFilters: Record<string, string | undefined>;
+  ticketFilters?: TicketFilters;
+  baseView?: TicketView;
   onClose?: () => void;
+  onSaveAsView?: () => void;
 }
 
 export function countActiveFilters(currentFilters: Record<string, string | undefined>) {
-  return Object.entries(currentFilters).filter(([k, v]) => k !== "view" && v).length;
+  return Object.entries(currentFilters).filter(
+    ([key, value]) => !["view", "custom_view", "list"].includes(key) && value
+  ).length;
+}
+
+export function filtersToTicketFilters(currentFilters: TicketSearchParams): TicketFilters {
+  return {
+    status: currentFilters.status?.split(",") as never,
+    owner_id: currentFilters.owner_id,
+    category_id: currentFilters.category_id,
+    department_id: currentFilters.department_id,
+    priority: currentFilters.priority?.split(",") as never,
+    search: currentFilters.search,
+    date_from: currentFilters.date_from,
+    date_to: currentFilters.date_to,
+  };
 }
 
 export function TicketFilterPanel({
   agents,
   categories,
+  departments = [],
   currentFilters,
   onClose,
+  onSaveAsView,
 }: TicketFilterPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -133,6 +155,26 @@ export function TicketFilterPanel({
         </div>
 
         <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Department</Label>
+          <Select
+            value={currentFilters.department_id || "all"}
+            onValueChange={(v) => updateFilter("department_id", v)}
+          >
+            <SelectTrigger className="w-full h-9">
+              <SelectValue placeholder="Department" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              {departments.map((department) => (
+                <SelectItem key={department.id} value={department.id}>
+                  {department.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Priority</Label>
           <Select value={currentFilters.priority || "all"} onValueChange={(v) => updateFilter("priority", v)}>
             <SelectTrigger className="w-full h-9">
@@ -169,7 +211,12 @@ export function TicketFilterPanel({
       </div>
 
       {hasFilters && (
-        <div className="border-t border-border p-4">
+        <div className="space-y-2 border-t border-border p-4">
+          {onSaveAsView && (
+            <Button variant="default" size="sm" className="w-full" onClick={onSaveAsView}>
+              Save as Custom View
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="w-full" onClick={clearFilters}>
             <X className="h-4 w-4" />
             Clear all filters

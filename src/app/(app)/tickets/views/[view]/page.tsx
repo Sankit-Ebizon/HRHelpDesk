@@ -1,9 +1,17 @@
 import { notFound, redirect } from "next/navigation";
-import { AppHeader } from "@/components/layout/sidebar";
-import { TicketStatusListView } from "@/components/tickets/ticket-status-list-view";
 import { getLayoutContext } from "@/components/layout/dashboard-shell";
+import { TicketsWorkspace } from "@/components/tickets/tickets-workspace";
 import { canAccess } from "@/lib/auth";
-import { getTicketCounts, getTickets } from "@/lib/queries";
+import {
+  getTicketCounts,
+  getTickets,
+  getHRAgents,
+  getCategories,
+  getDepartments,
+  getSavedTicketViews,
+  getCustomViewCounts,
+  getStarredSystemViews,
+} from "@/lib/queries";
 import { TICKET_VIEWS, type TicketView } from "@/types";
 
 interface PageProps {
@@ -22,12 +30,24 @@ export default async function TicketViewListPage({ params }: PageProps) {
   if (!isTicketView(viewParam)) notFound();
 
   const view = viewParam;
-  const [tickets, counts] = await Promise.all([
-    getTickets(view, {}, ctx.profile.id),
-    getTicketCounts(ctx.profile.id),
-  ]);
+  const canDelete = canAccess(ctx.permissions, "tickets", "delete");
+  const canCreate = canAccess(ctx.permissions, "tickets", "create");
 
-  const viewMeta = TICKET_VIEWS.find((item) => item.id === view)!;
+  const currentFilters = { view };
+
+  const [tickets, counts, agents, categories, departments, savedViews, starredSystemViews] =
+    await Promise.all([
+      getTickets(view, {}, ctx.profile.id),
+      getTicketCounts(ctx.profile.id),
+      getHRAgents(),
+      getCategories(),
+      getDepartments(),
+      getSavedTicketViews(),
+      getStarredSystemViews(),
+    ]);
+
+  const customViewCounts = await getCustomViewCounts(savedViews, ctx.profile.id);
+
   const viewCounts = {
     my_open: counts.my_open,
     unassigned: counts.unassigned,
@@ -37,13 +57,21 @@ export default async function TicketViewListPage({ params }: PageProps) {
   };
 
   return (
-    <>
-      <AppHeader title={viewMeta.label} profile={ctx.profile} />
-      <TicketStatusListView
-        tickets={tickets}
-        view={view}
-        viewCounts={viewCounts}
-      />
-    </>
+    <TicketsWorkspace
+      tickets={tickets}
+      view={view}
+      viewCounts={viewCounts}
+      agents={agents}
+      categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+      departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+      currentFilters={currentFilters}
+      savedViews={savedViews}
+      starredSystemViews={starredSystemViews}
+      customViewCounts={customViewCounts}
+      canDelete={canDelete}
+      canCreate={canCreate}
+      profile={ctx.profile}
+      listMode
+    />
   );
 }

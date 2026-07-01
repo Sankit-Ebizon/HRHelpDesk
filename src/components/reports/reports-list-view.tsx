@@ -5,10 +5,11 @@ import type { ReportDefinition } from "@/lib/reports/types";
 interface ReportsListViewProps {
   reports: ReportDefinition[];
   showCustomReport: boolean;
+  showSchedules?: boolean;
 }
 
-export function ReportsListView({ reports, showCustomReport }: ReportsListViewProps) {
-  const totalCount = reports.length + (showCustomReport ? 1 : 0);
+export function ReportsListView({ reports, showCustomReport, showSchedules = false }: ReportsListViewProps) {
+  const totalCount = reports.length + (showCustomReport ? 1 : 0) + (showSchedules ? 1 : 0);
 
   if (totalCount === 0) {
     return (
@@ -34,6 +35,16 @@ export function ReportsListView({ reports, showCustomReport }: ReportsListViewPr
             label: CUSTOM_REPORT_META.label,
             description: CUSTOM_REPORT_META.description,
             href: "/reports/custom",
+          },
+        ]
+      : []),
+    ...(showSchedules
+      ? [
+          {
+            id: "schedules",
+            label: "Schedule",
+            description: "Configure recurring report delivery to email recipients",
+            href: "/reports/schedules",
           },
         ]
       : []),

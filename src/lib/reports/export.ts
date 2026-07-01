@@ -11,7 +11,7 @@ function buildSheetRows(result: ReportResult): Record<string, unknown>[] {
   });
 }
 
-export function downloadReportAsExcel(reportLabel: string, result: ReportResult) {
+function buildWorkbook(result: ReportResult) {
   const workbook = XLSX.utils.book_new();
   const dataSheet = XLSX.utils.json_to_sheet(buildSheetRows(result));
   XLSX.utils.book_append_sheet(workbook, dataSheet, "Report");
@@ -25,6 +25,21 @@ export function downloadReportAsExcel(reportLabel: string, result: ReportResult)
     XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
   }
 
-  const filename = `${reportLabel.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.xlsx`;
-  XLSX.writeFile(workbook, filename);
+  return workbook;
+}
+
+export function getReportFilename(reportLabel: string): string {
+  return `${reportLabel.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.xlsx`;
+}
+
+export function buildReportWorkbookBuffer(result: ReportResult): Buffer {
+  const workbook = buildWorkbook(result);
+  return Buffer.from(
+    XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as ArrayBuffer
+  );
+}
+
+export function downloadReportAsExcel(reportLabel: string, result: ReportResult) {
+  const workbook = buildWorkbook(result);
+  XLSX.writeFile(workbook, getReportFilename(reportLabel));
 }

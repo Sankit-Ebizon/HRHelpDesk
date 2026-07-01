@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
 import type { ReportFieldDef } from "./catalog";
 import { getAvailableFields, getReportModule } from "./catalog";
 import { daysBetween, firstNameFromFullName } from "./date-ranges";
+import { getReportSupabase } from "./report-client";
 import type { CustomReportConfig, ReportFilters, ReportResult } from "./types";
 
 type NestedRecord = Record<string, unknown>;
@@ -182,7 +182,7 @@ export async function runCustomReport(config: CustomReportConfig): Promise<Repor
     label: field.label,
   }));
 
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   const select = buildSelect(config.moduleId, config.joinId, selectedFields);
 
   let query = supabase.from(module.table).select(select);

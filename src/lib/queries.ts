@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { unstable_noStore as noStore } from "next/cache";
-import type { RoleDefinition, Ticket, TicketFilters, TicketView } from "@/types";
+import type { RoleDefinition, Ticket, TicketFilters, TicketView, SavedTicketView } from "@/types";
 
 const TICKET_SELECT = `
   *,
@@ -43,6 +43,7 @@ export async function getTickets(
   if (filters.status?.length) query = query.in("status", filters.status);
   if (filters.owner_id) query = query.eq("owner_id", filters.owner_id);
   if (filters.category_id) query = query.eq("category_id", filters.category_id);
+  if (filters.department_id) query = query.eq("department_id", filters.department_id);
   if (filters.priority?.length) query = query.in("priority", filters.priority);
   if (filters.date_from) query = query.gte("created_at", filters.date_from);
   if (filters.date_to) query = query.lte("created_at", filters.date_to);
@@ -55,6 +56,66 @@ export async function getTickets(
   const { data, error } = await query;
   if (error) throw error;
   return (data as Ticket[]) || [];
+}
+
+export async function countTicketsForView(
+  view: TicketView = "all",
+  filters: TicketFilters = {},
+  userId?: string
+): Promise<number> {
+  const supabase = await createClient();
+  let query = supabase.from("tickets").select("id", { count: "exact", head: true });
+
+  switch (view) {
+    case "my_open":
+      if (userId) query = query.eq("owner_id", userId).in("status", ["open", "in_progress", "on_hold", "reopened"]);
+      break;
+    case "unassigned":
+      query = query.is("owner_id", null).not("status", "eq", "closed");
+      break;
+    case "overdue":
+      query = query.lt("due_date", new Date().toISOString()).not("status", "eq", "closed");
+      break;
+    case "all":
+      if (!filters.owner_id) query = query.not("status", "eq", "closed");
+      break;
+    case "closed":
+      query = query.eq("status", "closed");
+      break;
+  }
+
+  if (filters.status?.length) query = query.in("status", filters.status);
+  if (filters.owner_id) query = query.eq("owner_id", filters.owner_id);
+  if (filters.category_id) query = query.eq("category_id", filters.category_id);
+  if (filters.department_id) query = query.eq("department_id", filters.department_id);
+  if (filters.priority?.length) query = query.in("priority", filters.priority);
+  if (filters.date_from) query = query.gte("created_at", filters.date_from);
+  if (filters.date_to) query = query.lte("created_at", filters.date_to);
+  if (filters.search) {
+    query = query.or(
+      `subject.ilike.%${filters.search}%,ticket_number.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,contact_email.ilike.%${filters.search}%`
+    );
+  }
+
+  const { count, error } = await query;
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function getCustomViewCounts(
+  savedViews: SavedTicketView[],
+  userId?: string
+): Promise<Record<string, number>> {
+  if (savedViews.length === 0) return {};
+
+  const results = await Promise.all(
+    savedViews.map(async (savedView) => ({
+      id: savedView.id,
+      count: await countTicketsForView(savedView.base_view, savedView.filters, userId),
+    }))
+  );
+
+  return Object.fromEntries(results.map((item) => [item.id, item.count]));
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {
@@ -136,6 +197,16 @@ export async function getTicketComments(ticketId: string) {
   return data || [];
 }
 
+export async function getTicketPins(ticketId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("ticket_pinned_messages")
+    .select("*")
+    .eq("ticket_id", ticketId)
+    .order("created_at", { ascending: false });
+  return data || [];
+}
+
 export async function getTicketAttachments(ticketId: string) {
   const supabase = await createClient();
   const { data } = await supabase
@@ -175,6 +246,19 @@ export async function getHRAgents() {
     .in("role", ["administrator", "hr_manager", "hr_agent"])
     .order("full_name");
   return data || [];
+}
+
+export async function getRecipientEmailOptions() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("status", "active")
+    .order("full_name");
+  return (data || []).map((profile) => ({
+    email: profile.email,
+    label: profile.full_name,
+  }));
 }
 
 const DEPARTMENT_SELECT_WITH_CREATOR =
@@ -605,4 +689,58 @@ export async function getUnreadNotificationCount(userId: string) {
     .eq("user_id", userId)
     .eq("is_read", false);
   return count || 0;
+}
+
+function isMissingTableError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "PGRST205" ||
+    /could not find the table/i.test(error.message || "")
+  );
+}
+
+export async function getSavedTicketViews(): Promise<SavedTicketView[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("saved_ticket_views")
+    .select("*")
+    .order("is_starred", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+  return (data as SavedTicketView[]) || [];
+}
+
+export async function getSavedTicketViewById(id: string): Promise<SavedTicketView | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("saved_ticket_views")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error)) return null;
+    return null;
+  }
+  return data as SavedTicketView | null;
+}
+
+export async function getStarredSystemViews(): Promise<TicketView[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("starred_system_ticket_views")
+    .select("view_id")
+    .order("sort_order", { ascending: true })
+    .order("view_id", { ascending: true });
+
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+
+  return (data ?? []).map((row) => row.view_id as TicketView);
 }

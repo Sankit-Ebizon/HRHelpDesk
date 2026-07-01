@@ -12,6 +12,10 @@ import {
   stripDisplayQuotes,
   verifyResendWebhook,
 } from "@/lib/resend-webhook";
+import { normalizeEmailContent, sanitizeEmailHtml } from "@/lib/email-html";
+import { isInlineEmailAttachment } from "@/lib/ticket-conversation";
+import { uploadBufferToOneDrive } from "@/lib/onedrive";
+import type { TicketAttachment } from "@/types";
 
 interface InboundEmailPayload {
   from: string;
@@ -73,9 +77,15 @@ function isAuthorized(request: NextRequest): boolean {
   return false;
 }
 
-async function saveInboundAttachments(ticketId: string, resendEmailId: string) {
+async function saveInboundAttachments(
+  ticketId: string,
+  ticketNumber: string,
+  resendEmailId: string,
+  emailContent?: { html?: string; text?: string }
+) {
   const supabase = createServiceClient();
   const attachments = await fetchResendAttachments(resendEmailId);
+  const emailBody = emailContent?.html || emailContent?.text || "";
 
   for (const attachment of attachments) {
     const downloaded = await downloadResendAttachment(resendEmailId, attachment);
@@ -95,16 +105,74 @@ async function saveInboundAttachments(ticketId: string, resendEmailId: string) {
       continue;
     }
 
-    const { error: insertError } = await supabase.from("ticket_attachments").insert({
+    const baseRecord = {
       ticket_id: ticketId,
       file_name: downloaded.filename,
       file_path: filePath,
       file_size: downloaded.size,
       mime_type: downloaded.contentType,
-    });
+    };
+
+    const inlineProbe = {
+      ...baseRecord,
+      id: "",
+      uploaded_by: null,
+      comment_id: null,
+      created_at: "",
+    } as TicketAttachment;
+    const isInline = isInlineEmailAttachment(inlineProbe, emailBody);
+
+    let insertedId: string | null = null;
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("ticket_attachments")
+      .insert({ ...baseRecord, source: "email" })
+      .select("id")
+      .single();
 
     if (insertError) {
-      console.error("Attachment record failed:", insertError);
+      if (insertError.message?.includes("source")) {
+        const { data: retried, error: retryError } = await supabase
+          .from("ticket_attachments")
+          .insert(baseRecord)
+          .select("id")
+          .single();
+        if (retryError) {
+          console.error("Attachment record failed:", retryError);
+          continue;
+        }
+        insertedId = retried?.id ?? null;
+      } else {
+        console.error("Attachment record failed:", insertError);
+        continue;
+      }
+    } else {
+      insertedId = inserted?.id ?? null;
+    }
+
+    if (!insertedId || isInline) continue;
+
+    const oneDrive = await uploadBufferToOneDrive({
+      buffer: downloaded.buffer,
+      fileName: downloaded.filename,
+      ticketNumber,
+      contentType: downloaded.contentType,
+    });
+
+    if (oneDrive) {
+      const { error: updateError } = await supabase
+        .from("ticket_attachments")
+        .update({
+          onedrive_url: oneDrive.webUrl,
+          onedrive_item_id: oneDrive.itemId,
+        })
+        .eq("id", insertedId);
+
+      if (updateError?.message?.includes("onedrive")) {
+        console.warn("OneDrive URL not saved — run migration 020:", updateError.message);
+      } else if (updateError) {
+        console.error("Failed to save OneDrive URL:", updateError);
+      }
     }
   }
 }
@@ -137,7 +205,16 @@ async function createTicketFromEmail(
 
   const contactEmail = extractEmailAddress(payload.from);
   const contactName = extractName(payload.from, payload.from_name);
-  const description = payload.text || payload.html?.replace(/<[^>]*>/g, "") || payload.subject;
+  const rawDescription = payload.html?.trim() || payload.text || payload.subject;
+  const description = sanitizeEmailHtml(rawDescription);
+
+  const syntheticHeaders = [
+    `From: ${payload.from}`,
+    `To: ${payload.to}`,
+    `Subject: ${payload.subject || "Email Support Request"}`,
+    "MIME-Version: 1.0",
+    payload.html ? 'Content-Type: text/html; charset="UTF-8"' : 'Content-Type: text/plain; charset="UTF-8"',
+  ].join("\r\n");
 
   let { data: contact } = await supabase
     .from("contacts")
@@ -164,6 +241,10 @@ async function createTicketFromEmail(
       contact_email: contactEmail,
       priority: "medium",
       status: "open",
+      raw_email_headers: syntheticHeaders,
+      raw_email_html: payload.html || null,
+      raw_email_text: payload.text || null,
+      inbound_message_id: options?.resendEmailId || null,
     })
     .select("id, ticket_number, subject")
     .single();
@@ -174,8 +255,30 @@ async function createTicketFromEmail(
   }
 
   if (options?.resendEmailId) {
-    await saveInboundAttachments(ticket.id, options.resendEmailId);
+    await saveInboundAttachments(ticket.id, ticket.ticket_number, options.resendEmailId, {
+      html: payload.html,
+      text: payload.text,
+    });
   }
+
+  const { data: imageAttachment } = await supabase
+    .from("ticket_attachments")
+    .select("id")
+    .eq("ticket_id", ticket.id)
+    .like("mime_type", "image/%")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const inlineImageUrl = imageAttachment?.id
+    ? `/api/attachments/${imageAttachment.id}/download`
+    : undefined;
+  const normalizedDescription = normalizeEmailContent(rawDescription, inlineImageUrl);
+
+  await supabase
+    .from("tickets")
+    .update({ description: normalizedDescription })
+    .eq("id", ticket.id);
 
   await createNotification({
     type: "ticket_created",

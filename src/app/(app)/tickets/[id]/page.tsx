@@ -11,18 +11,27 @@ import {
   getHRAgents,
   getTickets,
   getTicketCounts,
+  getSupportEmail,
+  getTicketPins,
+  getSavedTicketViews,
+  getSavedTicketViewById,
+  getCustomViewCounts,
+  getStarredSystemViews,
 } from "@/lib/queries";
 import { TicketsWorkspace } from "@/components/tickets/tickets-workspace";
 import { canAccess } from "@/lib/auth";
-import type { TicketView } from "@/types";
+import { filtersFromSearchParams } from "@/lib/ticket-url";
+import type { TicketFilters, TicketView } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     view?: TicketView;
+    custom_view?: string;
     status?: string;
     owner_id?: string;
     category_id?: string;
+    department_id?: string;
     priority?: string;
     search?: string;
     date_from?: string;
@@ -39,25 +48,25 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
 
   const canDelete = canAccess(ctx.permissions, "tickets", "delete");
   const canCreate = canAccess(ctx.permissions, "tickets", "create");
-  const view = (query.view || "all") as TicketView;
+
+  const { view: paramView, filters: paramFilters, customViewId } = filtersFromSearchParams(query);
+  const activeCustomView = customViewId ? await getSavedTicketViewById(customViewId) : null;
+  const view = (activeCustomView?.base_view || paramView || "all") as TicketView;
+  const filters: TicketFilters = activeCustomView
+    ? { ...activeCustomView.filters, ...paramFilters }
+    : paramFilters;
+
   const currentFilters = {
     view,
-    status: query.status,
-    owner_id: query.owner_id,
-    category_id: query.category_id,
-    priority: query.priority,
-    search: query.search,
-    date_from: query.date_from,
-    date_to: query.date_to,
-  };
-  const filters = {
-    status: query.status?.split(",") as never,
-    owner_id: query.owner_id,
-    category_id: query.category_id,
-    priority: query.priority?.split(",") as never,
-    search: query.search,
-    date_from: query.date_from,
-    date_to: query.date_to,
+    custom_view: customViewId,
+    status: filters.status?.join(","),
+    owner_id: filters.owner_id,
+    category_id: filters.category_id,
+    department_id: filters.department_id,
+    priority: filters.priority?.join(","),
+    search: filters.search,
+    date_from: filters.date_from,
+    date_to: filters.date_to,
   };
 
   const ticket = await getTicketById(id);
@@ -73,6 +82,10 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
     departments,
     categories,
     agents,
+    supportEmail,
+    pins,
+    savedViews,
+    starredSystemViews,
   ] = await Promise.all([
     getTickets(view, filters, ctx.profile.id),
     getTicketCounts(ctx.profile.id),
@@ -83,7 +96,13 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
     getDepartments(),
     getCategories(),
     getHRAgents(),
+    getSupportEmail(),
+    getTicketPins(id),
+    getSavedTicketViews(),
+    getStarredSystemViews(),
   ]);
+
+  const customViewCounts = await getCustomViewCounts(savedViews, ctx.profile.id);
 
   const viewCounts = {
     my_open: counts.my_open,
@@ -101,7 +120,12 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
       viewCounts={viewCounts}
       agents={agents}
       categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+      departments={departments.map((d) => ({ id: d.id, name: d.name }))}
       currentFilters={currentFilters}
+      savedViews={savedViews}
+      starredSystemViews={starredSystemViews}
+      customViewCounts={customViewCounts}
+      activeCustomView={activeCustomView}
       canDelete={canDelete}
       canCreate={canCreate}
       profile={ctx.profile}
@@ -110,8 +134,9 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
       attachments={attachments}
       timeLogs={timeLogs}
       history={history}
-      departments={departments}
       categoriesFull={categories}
+      supportEmail={supportEmail}
+      pins={pins}
     />
   );
 }

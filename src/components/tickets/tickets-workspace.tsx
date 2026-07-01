@@ -3,9 +3,13 @@ import { ArrowLeft, Plus, Ticket as TicketIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TicketListPanel } from "@/components/tickets/ticket-list-panel";
+import { TicketStatusListView } from "@/components/tickets/ticket-status-list-view";
+import { TicketViewsSidebar } from "@/components/tickets/ticket-views-sidebar";
 import { TicketPropertiesPanel } from "@/components/tickets/ticket-properties-panel";
 import { TicketDetailView } from "@/components/tickets/ticket-detail-view";
-import { DeleteTicketButton } from "@/components/tickets/delete-ticket-button";
+import { TicketConversationProvider } from "@/components/tickets/ticket-conversation-context";
+import { TicketHeaderActions } from "@/components/tickets/ticket-header-actions";
+import { partitionComments } from "@/lib/ticket-conversation";
 import { cn, formatDateTime, getPriorityColor, getStatusColor, minutesToHHMM } from "@/lib/utils";
 import { TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from "@/types";
 import type {
@@ -16,8 +20,10 @@ import type {
   TimeLog,
   TicketHistory,
   TicketView,
+  TicketPinnedMessage,
+  SavedTicketView,
 } from "@/types";
-import { buildTicketViewListUrl, type TicketSearchParams } from "@/lib/ticket-url";
+import { buildTicketsListUrl, buildTicketViewListUrl, type TicketSearchParams } from "@/lib/ticket-url";
 
 interface TicketsWorkspaceProps {
   tickets: Ticket[];
@@ -26,7 +32,12 @@ interface TicketsWorkspaceProps {
   viewCounts: Record<TicketView, number>;
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
   currentFilters: TicketSearchParams;
+  savedViews?: SavedTicketView[];
+  starredSystemViews?: TicketView[];
+  customViewCounts?: Record<string, number>;
+  activeCustomView?: SavedTicketView | null;
   canDelete: boolean;
   canCreate: boolean;
   profile: Profile;
@@ -35,8 +46,10 @@ interface TicketsWorkspaceProps {
   attachments?: TicketAttachment[];
   timeLogs?: TimeLog[];
   history?: TicketHistory[];
-  departments?: { id: string; name: string }[];
   categoriesFull?: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
+  supportEmail?: string;
+  pins?: TicketPinnedMessage[];
+  listMode?: boolean;
 }
 
 export function TicketsWorkspace({
@@ -46,7 +59,12 @@ export function TicketsWorkspace({
   viewCounts,
   agents,
   categories,
+  departments = [],
   currentFilters,
+  savedViews = [],
+  starredSystemViews = [],
+  customViewCounts = {},
+  activeCustomView = null,
   canDelete,
   canCreate,
   profile,
@@ -55,14 +73,46 @@ export function TicketsWorkspace({
   attachments = [],
   timeLogs = [],
   history = [],
-  departments = [],
   categoriesFull = [],
+  supportEmail = "",
+  pins = [],
+  listMode = false,
 }: TicketsWorkspaceProps) {
   const hasSelection = Boolean(ticket);
+  const showFullList = listMode && !hasSelection;
+  const listBackHref = activeCustomView
+    ? buildTicketsListUrl({ ...currentFilters, list: "1" })
+    : buildTicketViewListUrl(view);
 
   return (
     <div className="zoho-tickets flex h-[calc(100vh-var(--top-nav-height))] min-h-0 flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
+        <div className="hidden shrink-0 lg:flex">
+          <TicketViewsSidebar
+            view={view}
+            viewCounts={viewCounts}
+            savedViews={savedViews}
+            starredSystemViews={starredSystemViews}
+            customViewCounts={customViewCounts}
+            activeCustomView={activeCustomView}
+            currentFilters={currentFilters}
+          />
+        </div>
+
+        {showFullList ? (
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <TicketStatusListView
+              tickets={tickets}
+              view={view}
+              viewCounts={viewCounts}
+              currentFilters={currentFilters}
+              savedViews={savedViews}
+              starredSystemViews={starredSystemViews}
+              activeCustomView={activeCustomView}
+            />
+          </div>
+        ) : (
+          <>
         <div
           className={cn(
             "shrink-0",
@@ -76,7 +126,11 @@ export function TicketsWorkspace({
             viewCounts={viewCounts}
             agents={agents}
             categories={categories}
+            departments={departments}
             currentFilters={currentFilters}
+            savedViews={savedViews}
+            starredSystemViews={starredSystemViews}
+            activeCustomView={activeCustomView}
             canCreate={canCreate}
           />
         </div>
@@ -106,13 +160,13 @@ export function TicketsWorkspace({
         ) : (
           <>
             {ticket && (
-              <>
+              <TicketConversationProvider>
                 <TicketPropertiesPanel ticket={ticket} agents={agents} />
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
                   <div className="border-b border-border px-4 py-3 sm:px-5">
                     <div className="mb-2 lg:hidden">
-                      <Link href={buildTicketViewListUrl(view)}>
+                      <Link href={listBackHref}>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-[13px] font-medium text-[#444] hover:text-[#222]">
                           <ArrowLeft className="mr-1 h-4 w-4" />
                           All tickets
@@ -144,28 +198,17 @@ export function TicketsWorkspace({
                           >
                             {TICKET_PRIORITY_LABELS[ticket.priority]}
                           </span>
-                          <span className="text-[12px] font-medium text-[#555]">
+                          {/* <span className="text-[12px] font-medium text-[#555]">
                             Time: {minutesToHHMM(ticket.total_time_minutes || 0)}
-                          </span>
+                          </span> */}
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {canDelete && (
-                          <DeleteTicketButton
-                            ticketId={ticket.id}
-                            ticketNumber={ticket.ticket_number}
-                            subject={ticket.subject}
-                            variant="button"
-                          />
-                        )}
-                        {canCreate && (
-                          <Button asChild size="sm" className="zoho-btn-primary h-8 px-3">
-                            <Link href="/tickets/new">
-                              <Plus className="h-4 w-4" />
-                              New Ticket
-                            </Link>
-                          </Button>
-                        )}
+                        <TicketHeaderActions
+                          ticket={ticket}
+                          canDelete={canDelete}
+                          hasInternalComments={partitionComments(comments).internalComments.length > 0}
+                        />
                       </div>
                     </div>
                   </div>
@@ -181,12 +224,16 @@ export function TicketsWorkspace({
                       categories={categoriesFull}
                       agents={agents}
                       currentUser={profile}
+                      supportEmail={supportEmail}
+                      pins={pins}
                       variant="zoho"
                     />
                   </div>
                 </div>
-              </>
+              </TicketConversationProvider>
             )}
+          </>
+        )}
           </>
         )}
       </div>

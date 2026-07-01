@@ -6,6 +6,7 @@ import { runWithLoading } from "@/lib/loading-store";
 import { ALL_REPORT_SECTIONS, CUSTOM_REPORT_SECTION } from "@/lib/reports/sections";
 import {
   getModulePermissionActions,
+  getPermissionLabel,
   PERMISSION_ACTIONS,
   type PermissionField,
 } from "@/lib/permission-actions";
@@ -25,7 +26,7 @@ const PERMISSION_SECTIONS = [
   },
   {
     title: "Administration",
-    slugs: ["users", "reports", "settings"],
+    slugs: ["users", "reports", "scheduled_reports", "settings"],
   },
 ];
 
@@ -61,6 +62,7 @@ export function RolePermissionsEditor({
         if (perm.can_create) await updateRolePermission(permissionId, "can_create", false, role);
         if (perm.can_edit) await updateRolePermission(permissionId, "can_edit", false, role);
         if (perm.can_delete) await updateRolePermission(permissionId, "can_delete", false, role);
+        if (perm.can_enable) await updateRolePermission(permissionId, "can_enable", false, role);
       }
 
       if (field !== "can_read" && nextValue) {
@@ -119,7 +121,9 @@ export function RolePermissionsEditor({
                         key={action.key}
                         className="flex items-center justify-between px-3 py-2.5"
                       >
-                        <span className="text-[13px] text-zinc-700">{action.label}</span>
+                        <span className="text-[13px] text-zinc-700">
+                          {getPermissionLabel(slug, action.key)}
+                        </span>
                         <ZohoToggle
                           id={`${role}-${slug}-${action.key}`}
                           label={`${perm.module?.name} ${action.label}`}

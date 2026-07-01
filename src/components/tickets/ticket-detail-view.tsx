@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,10 +19,23 @@ import {
 import { addComment, updateTicket, addTimeLog, updateTimeLog, deleteTimeLog, uploadAttachment } from "@/lib/actions/tickets";
 import { runWithLoading } from "@/lib/loading-store";
 import { formatDate, formatDateTime, formatRelative, minutesToHHMM, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
+import { isHtmlContent } from "@/lib/email-html";
 import { TICKET_STATUS_LABELS, TICKET_PRIORITY_LABELS } from "@/types";
 import type { Ticket, TicketComment, TicketAttachment, TimeLog, TicketHistory, Profile } from "@/types";
 import { MessageSquare, FileText, Clock, History, Paperclip, Send, Lock, Download, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTicketConversation } from "@/components/tickets/ticket-conversation-context";
+import { TicketEmailComposer } from "@/components/tickets/ticket-email-composer";
+import { TicketInternalCommentComposer } from "@/components/tickets/ticket-internal-comment-composer";
+import { TicketCommentMessage, TicketConversationMessage } from "@/components/tickets/ticket-conversation-message";
+import { TicketDraftMessage } from "@/components/tickets/ticket-draft-message";
+import { PinnedItemsBar, buildPinnedPreview } from "@/components/tickets/pinned-items-bar";
+import { PinnedMessageDialog } from "@/components/tickets/pinned-message-dialog";
+import { EmailMessageContent } from "@/components/tickets/email-message-content";
+import { groupAttachmentsByMessage, getEmailPrintImageUrls, getInternalAttachments, partitionComments, getSignatureInlineImageUrl } from "@/lib/ticket-conversation";
+import { openHtmlPrintWindow, prepareEmailHtmlForPrint } from "@/lib/print-email";
+import { toast } from "@/lib/toast-store";
+import type { TicketPinnedMessage } from "@/types";
 
 interface TicketDetailViewProps {
   ticket: Ticket;
@@ -33,6 +47,8 @@ interface TicketDetailViewProps {
   categories: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
   agents: { id: string; full_name: string }[];
   currentUser: Profile;
+  supportEmail?: string;
+  pins?: TicketPinnedMessage[];
   variant?: "default" | "zoho";
 }
 
@@ -46,14 +62,27 @@ export function TicketDetailView({
   categories,
   agents,
   currentUser,
+  supportEmail = "",
+  pins = [],
   variant = "default",
 }: TicketDetailViewProps) {
+  const { composerMode, closeComposer, activeTab, setActiveTab, registerHeaderCallbacks } =
+    useTicketConversation();
+  const router = useRouter();
+  const ticketRef = useRef(ticket);
+  const commentsRef = useRef(comments);
+  const attachmentsRef = useRef(attachments);
+  ticketRef.current = ticket;
+  commentsRef.current = comments;
+  attachmentsRef.current = attachments;
   const [replyContent, setReplyContent] = useState("");
   const [internalContent, setInternalContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [categoryId, setCategoryId] = useState(ticket.category_id || "");
   const [editingTimeLogId, setEditingTimeLogId] = useState<string | null>(null);
+  const [discardedDraftIds, setDiscardedDraftIds] = useState<string[]>([]);
+  const [pinnedDialogKey, setPinnedDialogKey] = useState<string | null>(null);
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const agentsById = new Map(agents.map((agent) => [agent.id, agent.full_name]));
   const categoriesById = new Map(categories.map((category) => [category.id, category.name]));
@@ -68,6 +97,141 @@ export function TicketDetailView({
   const tabListClass = isZoho
     ? "inline-flex h-auto w-full flex-nowrap justify-start gap-0 rounded-none border-b border-border bg-transparent p-0"
     : "inline-flex h-auto w-max min-w-full flex-nowrap justify-start p-1 sm:w-auto";
+  const attachmentsByMessage = groupAttachmentsByMessage(attachments);
+  const internalAttachments = getInternalAttachments(attachments);
+  const initialMessageAttachments = attachmentsByMessage.get("initial") || [];
+  const ticketLevelImageAttachments = attachments.filter((att) => !att.comment_id);
+  const quotedInlineImageUrl =
+    getSignatureInlineImageUrl(initialMessageAttachments) ??
+    getSignatureInlineImageUrl(ticketLevelImageAttachments);
+  const { internalComments, publicComments, draftComments } = partitionComments(comments);
+  const visibleDraftComments = draftComments.filter(
+    (draft) => !discardedDraftIds.includes(draft.id)
+  );
+
+  const pinnedItems = pins.map((pin) => {
+    let previewContent = "";
+    if (pin.message_key === "initial") {
+      previewContent = ticket.description;
+    } else if (pin.message_key.startsWith("draft-")) {
+      const draftId = pin.message_key.replace("draft-", "");
+      previewContent = comments.find((item) => item.id === draftId)?.content || "";
+    } else {
+      previewContent = comments.find((item) => item.id === pin.message_key)?.content || "";
+    }
+    return {
+      key: pin.message_key,
+      pin,
+      preview: buildPinnedPreview(previewContent),
+    };
+  });
+  const pinnedMessageKeys = new Set(pins.map((pin) => pin.message_key));
+
+  const selectedPin = pins.find((pin) => pin.message_key === pinnedDialogKey);
+  const selectedPinContent = (() => {
+    if (!pinnedDialogKey) return null;
+    if (pinnedDialogKey === "initial") {
+      return {
+        authorName: ticket.contact_name,
+        createdAt: ticket.created_at,
+        content: ticket.description,
+        attachments: attachmentsByMessage.get("initial") || [],
+      };
+    }
+    if (pinnedDialogKey.startsWith("draft-")) {
+      const draftId = pinnedDialogKey.replace("draft-", "");
+      const draft = comments.find((item) => item.id === draftId);
+      if (!draft) return null;
+      return {
+        authorName: draft.author_name,
+        createdAt: draft.updated_at,
+        content: draft.content,
+        attachments: attachments.filter((att) => att.comment_id === draftId),
+      };
+    }
+    const comment = comments.find((item) => item.id === pinnedDialogKey);
+    if (!comment) return null;
+    return {
+      authorName: comment.author_name,
+      createdAt: comment.created_at,
+      content: comment.content,
+      attachments: attachments.filter((att) => att.comment_id === comment.id),
+    };
+  })();
+
+  useEffect(() => {
+    registerHeaderCallbacks({
+      onEdit: () => {
+        setActiveTab("details");
+        setEditMode(true);
+      },
+      onPrint: () => {
+        const currentTicket = ticketRef.current;
+        const currentAttachments = attachmentsRef.current;
+        const attachmentsByMsg = groupAttachmentsByMessage(currentAttachments);
+        const initialAttachments = attachmentsByMsg.get("initial") || [];
+        const initialFallbackSignature = getSignatureInlineImageUrl(
+          initialAttachments,
+          currentTicket.description
+        );
+        const { internalComments: internal, publicComments: public_ } = partitionComments(
+          commentsRef.current
+        );
+
+        const baseUrl = window.location.origin;
+        const renderBody = (content: string, messageAttachments: typeof currentAttachments) => {
+          const printImages = getEmailPrintImageUrls(
+            messageAttachments,
+            content,
+            initialFallbackSignature
+          );
+          return prepareEmailHtmlForPrint(content, {
+            signatureImageUrl: printImages.signatureImageUrl,
+            bodyImageUrl: printImages.bodyImageUrl,
+            attachmentImageUrls: printImages.attachmentImageUrls,
+            baseUrl,
+          });
+        };
+
+        const messageBlocks: string[] = [];
+
+        for (const comment of internal) {
+          messageBlocks.push(`
+            <div style="margin-bottom:20px;padding:12px;background:#fff8e6;border:1px solid #f0e0b0;border-radius:4px;">
+              <p style="margin:0 0 8px;font-size:13px;"><strong>${comment.author_name}</strong> · Private · ${formatDateTime(comment.created_at)}</p>
+              <div class="email-html-content">${renderBody(comment.content, [])}</div>
+            </div>
+          `);
+        }
+
+        messageBlocks.push(`
+          <div style="margin-bottom:20px;">
+            <p style="margin:0 0 8px;font-size:13px;"><strong>${currentTicket.contact_name}</strong> · ${formatDateTime(currentTicket.created_at)}</p>
+            <div class="email-html-content">${renderBody(currentTicket.description, initialAttachments)}</div>
+          </div>
+        `);
+
+        for (const comment of public_) {
+          const commentAttachments = currentAttachments.filter((att) => att.comment_id === comment.id);
+          messageBlocks.push(`
+            <div style="margin-bottom:20px;">
+              <p style="margin:0 0 8px;font-size:13px;"><strong>${comment.author_name}</strong> · ${formatDateTime(comment.created_at)}</p>
+              <div class="email-html-content">${renderBody(comment.content, commentAttachments)}</div>
+            </div>
+          `);
+        }
+
+        openHtmlPrintWindow({
+          title: `${currentTicket.ticket_number} — ${currentTicket.subject}`,
+          subtitle: `${currentTicket.ticket_number} · ${currentTicket.contact_name}`,
+          bodyHtml: `
+            <h1 style="font-size:18px;margin:0 0 4px;">${currentTicket.subject}</h1>
+            ${messageBlocks.join("")}
+          `,
+        });
+      },
+    });
+  }, [registerHeaderCallbacks, setActiveTab]);
 
   async function handleReply(type: "reply" | "internal") {
     const content = type === "reply" ? replyContent : internalContent;
@@ -125,14 +289,21 @@ export function TicketDetailView({
     formData.append("file", file);
     setLoading(true);
     try {
-      await runWithLoading(() => uploadAttachment(ticket.id, formData));
+      const result = await runWithLoading(() => uploadAttachment(ticket.id, formData));
+      if (result?.error) {
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      toast({ title: "Attachment uploaded", variant: "success" });
+      e.target.value = "";
+      router.refresh();
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Tabs defaultValue="conversation" className="min-w-0 space-y-4">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0 space-y-4">
       <div className={cn("-mx-1 overflow-x-auto pb-1", isZoho && "mx-0")}>
         <TabsList className={tabListClass}>
           <TabsTrigger value="conversation" className={tabTriggerClass}>
@@ -165,10 +336,10 @@ export function TicketDetailView({
           </TabsTrigger>
           <TabsTrigger value="attachments" className={tabTriggerClass}>
             {!isZoho && <Paperclip className="h-4 w-4 shrink-0" />}
-            {isZoho ? `Attachment (${attachments.length})` : (
+            {isZoho ? `Attachment (${internalAttachments.length})` : (
               <>
-                <span className="hidden sm:inline">Attachments ({attachments.length})</span>
-                <span className="sm:hidden">{attachments.length}</span>
+                <span className="hidden sm:inline">Attachments ({internalAttachments.length})</span>
+                <span className="sm:hidden">{internalAttachments.length}</span>
                 <span className="sr-only sm:hidden">Attachments</span>
               </>
             )}
@@ -187,24 +358,97 @@ export function TicketDetailView({
 
       {/* Conversation Tab */}
       <TabsContent value="conversation" className="space-y-4">
+        {isZoho && composerMode?.type === "internal" ? (
+          <TicketInternalCommentComposer
+            ticketId={ticket.id}
+            currentUser={currentUser}
+            onCancel={closeComposer}
+            onSent={closeComposer}
+          />
+        ) : null}
+
+        {isZoho &&
+        (composerMode?.type === "reply" ||
+          composerMode?.type === "replyAll" ||
+          composerMode?.type === "forward") ? (
+          <TicketEmailComposer
+            ticket={ticket}
+            comments={comments}
+            currentUser={currentUser}
+            supportEmail={supportEmail}
+            mode={composerMode.type}
+            messageId={composerMode.messageId}
+            initialInlineImageUrl={quotedInlineImageUrl}
+            editingDraft={
+              composerMode.draftId
+                ? comments.find((c) => c.id === composerMode.draftId)
+                : undefined
+            }
+            onCancel={closeComposer}
+            onSent={closeComposer}
+          />
+        ) : null}
+
         <div className="space-y-4">
           {isZoho ? (
-            <div className="border-b border-border pb-4">
-              <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8eef5] text-xs font-bold text-[#333]">
-                  {ticket.contact_name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-[13px] font-semibold text-[#222]">{ticket.contact_name}</span>
-                    <span className="text-[12px] font-medium text-[#555]">{formatDateTime(ticket.created_at)}</span>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#222]">
-                    {ticket.description}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <PinnedItemsBar
+              ticketId={ticket.id}
+              items={pinnedItems}
+              onSelect={setPinnedDialogKey}
+              onUnpinned={() => router.refresh()}
+            />
+          ) : null}
+
+          {isZoho
+            ? visibleDraftComments
+                .filter(
+                  (draft) =>
+                    !composerMode ||
+                    composerMode.type === "internal" ||
+                    composerMode.draftId !== draft.id
+                )
+                .map((draft) => (
+                <TicketDraftMessage
+                  key={draft.id}
+                  ticketId={ticket.id}
+                  draft={draft}
+                  attachments={attachments.filter((att) => att.comment_id === draft.id)}
+                  currentUser={currentUser}
+                  quotedInlineImageUrl={quotedInlineImageUrl}
+                  isPinned={pinnedMessageKeys.has(`draft-${draft.id}`)}
+                  onDiscarded={(draftId) =>
+                    setDiscardedDraftIds((prev) => [...prev, draftId])
+                  }
+                />
+              ))
+            : null}
+
+          {isZoho
+            ? internalComments.map((comment) => (
+                <TicketCommentMessage
+                  key={comment.id}
+                  comment={comment}
+                  currentUser={currentUser}
+                  isPinned={pinnedMessageKeys.has(comment.id)}
+                  variant="zoho"
+                />
+              ))
+            : null}
+
+          {isZoho ? (
+            <TicketConversationMessage
+              id="initial"
+              ticketId={ticket.id}
+              authorName={ticket.contact_name}
+              authorEmail={ticket.contact_email}
+              createdAt={ticket.created_at}
+              content={ticket.description}
+              attachments={attachmentsByMessage.get("initial") || []}
+              quotedInlineImageUrl={quotedInlineImageUrl}
+              menuType="public"
+              isPinned={pinnedMessageKeys.has("initial")}
+              variant="zoho"
+            />
           ) : (
           <Card>
             <CardContent className="p-4 pt-6 sm:p-6">
@@ -224,42 +468,19 @@ export function TicketDetailView({
           </Card>
           )}
 
-          {comments.map((comment) =>
-            isZoho ? (
-              <div
-                key={comment.id}
-                className={cn(
-                  "border-b border-border pb-4",
-                  comment.comment_type === "internal" && "bg-amber-50/40 px-2 -mx-2 rounded"
-                )}
-              >
-                <div className="flex gap-3">
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                      comment.comment_type === "internal" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
-                    )}
-                  >
-                    {comment.author_name.charAt(0)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-[13px] font-semibold text-[#222]">{comment.author_name}</span>
-                      {comment.comment_type === "internal" && (
-                        <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                          <Lock className="h-3 w-3" /> Internal
-                        </span>
-                      )}
-                      <span className="text-[12px] font-medium text-[#555]">{formatDateTime(comment.created_at)}</span>
-                    </div>
-                    <div
-                      className="mt-2 max-w-none break-words text-[13px] leading-relaxed text-[#222]"
-                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(comment.content) }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
+          {isZoho
+            ? publicComments.map((comment) => (
+                <TicketCommentMessage
+                  key={comment.id}
+                  comment={comment}
+                  attachments={attachmentsByMessage.get(comment.id) || []}
+                  quotedInlineImageUrl={quotedInlineImageUrl}
+                  currentUser={currentUser}
+                  isPinned={pinnedMessageKeys.has(comment.id)}
+                  variant="zoho"
+                />
+              ))
+            : comments.map((comment) => (
             <Card key={comment.id} className={comment.comment_type === "internal" ? "border-amber-200 bg-amber-50/50" : ""}>
               <CardContent className="p-4 pt-6 sm:p-6">
                 <div className="flex gap-3">
@@ -287,11 +508,11 @@ export function TicketDetailView({
                 </div>
               </CardContent>
             </Card>
-            )
-          )}
+            ))}
         </div>
 
-        <div id="ticket-reply" className={cn("grid gap-4", isZoho ? "grid-cols-1 lg:grid-cols-2" : "md:grid-cols-2")}>
+        {!isZoho ? (
+        <div id="ticket-reply" className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className={cn("text-sm", isZoho && "font-semibold text-[#222]")}>Reply to Contact</CardTitle>
@@ -338,13 +559,48 @@ export function TicketDetailView({
             </CardContent>
           </Card>
         </div>
+        ) : null}
+
+        {isZoho && selectedPin && selectedPinContent ? (
+          <PinnedMessageDialog
+            open={Boolean(pinnedDialogKey)}
+            onOpenChange={(open) => {
+              if (!open) setPinnedDialogKey(null);
+            }}
+            pin={selectedPin}
+            authorName={selectedPinContent.authorName}
+            createdAt={selectedPinContent.createdAt}
+            content={selectedPinContent.content}
+            attachments={selectedPinContent.attachments}
+            quotedInlineImageUrl={quotedInlineImageUrl}
+          />
+        ) : null}
       </TabsContent>
 
       {/* Details Tab */}
-      <TabsContent value="details">
+      <TabsContent value="details" className="space-y-4">
+        {isZoho ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className={cn("text-base", isZoho && "font-semibold text-[#222]")}>
+                Description
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmailMessageContent
+                content={ticket.description}
+                attachments={initialMessageAttachments}
+                quotedInlineImageUrl={quotedInlineImageUrl}
+                expanded
+                collapsible={false}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Ticket Details</CardTitle>
+            <CardTitle className="text-base">{isZoho ? "Ticket Details" : "Ticket Details"}</CardTitle>
             <Button variant="outline" size="sm" onClick={() => setEditMode(!editMode)}>
               {editMode ? "Cancel" : "Edit"}
             </Button>
@@ -356,10 +612,14 @@ export function TicketDetailView({
                   <Label>Subject</Label>
                   <Input name="subject" defaultValue={ticket.subject} required />
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea name="description" defaultValue={ticket.description} rows={4} required />
-                </div>
+                {isZoho ? (
+                  <input type="hidden" name="description" value={ticket.description} />
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea name="description" defaultValue={ticket.description} rows={4} required />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Contact Name</Label>
@@ -466,14 +726,19 @@ export function TicketDetailView({
                 <div><dt className="text-muted-foreground">Due Date</dt><dd>{ticket.due_date ? formatDate(ticket.due_date) : "—"}</dd></div>
                 <div><dt className="text-muted-foreground">Created</dt><dd>{formatDateTime(ticket.created_at)}</dd></div>
                 <div><dt className="text-muted-foreground">Modified</dt><dd>{formatDateTime(ticket.updated_at)}</dd></div>
-                <div className="col-span-2"><dt className="text-muted-foreground">Description</dt><dd className="mt-1 whitespace-pre-wrap">{ticket.description}</dd></div>
+                {!isZoho ? (
+                  <div className="col-span-2">
+                    <dt className="text-muted-foreground">Description</dt>
+                    <dd className="mt-1 whitespace-pre-wrap break-words">{ticket.description}</dd>
+                  </div>
+                ) : null}
               </dl>
             )}
           </CardContent>
         </Card>
       </TabsContent>
 
-      {/* Attachments Tab */}
+      {/* Attachments Tab — internal uploads only; mail attachments appear in conversation */}
       <TabsContent value="attachments">
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -491,11 +756,13 @@ export function TicketDetailView({
             </div>
           </CardHeader>
           <CardContent>
-            {attachments.length === 0 ? (
-              <p className={cn("text-sm", isZoho ? "font-medium text-[#444]" : "text-muted-foreground")}>No attachments yet.</p>
+            {internalAttachments.length === 0 ? (
+              <p className={cn("text-sm", isZoho ? "font-medium text-[#444]" : "text-muted-foreground")}>
+                {isZoho ? "No internal attachments yet. Files from email appear in the conversation." : "No attachments yet."}
+              </p>
             ) : (
               <div className="space-y-2">
-                {attachments.map((att) => (
+                {internalAttachments.map((att) => (
                   <div key={att.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
                       <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />

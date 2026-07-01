@@ -2,12 +2,22 @@ export type UserRole = string;
 export type UserStatus = "active" | "inactive" | "invited" | "rejected";
 export type TicketStatus = "open" | "in_progress" | "on_hold" | "closed" | "reopened";
 export type TicketPriority = "low" | "medium" | "high" | "urgent";
-export type CommentType = "reply" | "internal";
-export type PermissionAction = "read" | "create" | "edit" | "delete";
+export type CommentType = "reply" | "internal" | "draft";
+
+export interface DraftMetadata {
+  mode: "reply" | "replyAll" | "forward";
+  to: { name: string; email: string }[];
+  cc: { name: string; email: string }[];
+  bcc: { name: string; email: string }[];
+  quotedMessageId?: string;
+  subject?: string;
+}
+export type PermissionAction = "read" | "create" | "edit" | "delete" | "enable";
 export type NotificationType =
   | "ticket_created"
   | "ticket_assigned"
   | "ticket_reply"
+  | "ticket_internal"
   | "status_changed"
   | "ticket_closed"
   | "due_date_reminder";
@@ -127,6 +137,10 @@ export interface Ticket {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+  raw_email_headers?: string | null;
+  raw_email_html?: string | null;
+  raw_email_text?: string | null;
+  inbound_message_id?: string | null;
   owner?: Profile | null;
   department?: Department | null;
   category?: Category | null;
@@ -144,9 +158,25 @@ export interface TicketComment {
   content: string;
   comment_type: CommentType;
   is_from_contact: boolean;
+  draft_metadata?: DraftMetadata | null;
+  raw_email_headers?: string | null;
+  raw_email_html?: string | null;
+  raw_email_text?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface TicketPinnedMessage {
+  id: string;
+  ticket_id: string;
+  message_key: string;
+  pinned_by: string | null;
+  pinned_by_name: string;
+  visibility: "all_agents" | "only_me";
+  created_at: string;
+}
+
+export type AttachmentSource = "email" | "internal";
 
 export interface TicketAttachment {
   id: string;
@@ -157,6 +187,9 @@ export interface TicketAttachment {
   file_size: number | null;
   mime_type: string | null;
   uploaded_by: string | null;
+  source?: AttachmentSource;
+  onedrive_url?: string | null;
+  onedrive_item_id?: string | null;
   created_at: string;
 }
 
@@ -203,6 +236,7 @@ export interface RolePermission {
   can_create: boolean;
   can_edit: boolean;
   can_delete: boolean;
+  can_enable: boolean;
   module?: { slug: string; name: string };
 }
 
@@ -224,11 +258,33 @@ export interface TicketFilters {
   status?: TicketStatus[];
   owner_id?: string;
   category_id?: string;
+  department_id?: string;
   priority?: TicketPriority[];
   date_from?: string;
   date_to?: string;
   search?: string;
 }
+
+export type TicketViewVisibility = "private" | "shared" | "public";
+
+export interface SavedTicketView {
+  id: string;
+  name: string;
+  user_id: string;
+  base_view: TicketView;
+  filters: TicketFilters;
+  visibility: TicketViewVisibility;
+  is_starred: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const TICKET_VIEW_VISIBILITY_LABELS: Record<TicketViewVisibility, string> = {
+  private: "Only Me",
+  shared: "Shared (Team)",
+  public: "Public",
+};
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   open: "Open",

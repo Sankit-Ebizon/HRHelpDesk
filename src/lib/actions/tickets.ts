@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
 import { createNotification, sendEmailNotification } from "@/lib/notifications";
-import type { TicketPriority, TicketStatus } from "@/types";
+import type { DraftMetadata, TicketPriority, TicketStatus } from "@/types";
 import { parseTimeInput, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
 import { resolveTicketOwner } from "@/lib/department-routing";
+import { prepareOutboundEmailHtml } from "@/lib/email-outbound";
 
 export async function createTicket(formData: FormData) {
   const { profile } = await requirePermission("tickets", "create");
@@ -186,7 +187,13 @@ export async function deleteTicket(ticketId: string) {
 export async function addComment(
   ticketId: string,
   content: string,
-  commentType: "reply" | "internal"
+  commentType: "reply" | "internal",
+  options?: {
+    cc?: string[];
+    bcc?: string[];
+    to?: string[];
+    subject?: string;
+  }
 ) {
   const { profile } = await requirePermission("tickets", "edit");
   const supabase = await createClient();
@@ -211,24 +218,287 @@ export async function addComment(
     .eq("id", ticketId)
     .single();
 
-  if (commentType === "reply" && ticket?.contact_email) {
-    await sendEmailNotification({
-      to: ticket.contact_email,
-      subject: `Re: ${ticket.ticket_number} - ${ticket.subject}`,
-      html: `<p>${profile.full_name} replied to your ticket:</p><blockquote>${safeHtml}</blockquote>`,
-    });
+  if (commentType === "reply" && ticket) {
+    const prepared = await prepareOutboundEmailHtml(supabase, safeHtml, ticketId);
+    const recipients = options?.to?.filter(Boolean) ?? [ticket.contact_email].filter(Boolean);
+    for (const to of recipients) {
+      await sendEmailNotification({
+        to,
+        subject: options?.subject || `Re: ${ticket.ticket_number} - ${ticket.subject}`,
+        html: `<p>${profile.full_name} replied to your ticket:</p><blockquote>${prepared.html}</blockquote>`,
+        cc: options?.cc?.filter(Boolean),
+        bcc: options?.bcc?.filter(Boolean),
+        inlineAttachments: prepared.inlineAttachments,
+      });
+    }
   }
 
   await createNotification({
-    type: "ticket_reply",
+    type: commentType === "internal" ? "ticket_internal" : "ticket_reply",
     ticketId,
     title: `New ${commentType === "internal" ? "Internal Note" : "Reply"}: ${ticket?.ticket_number}`,
     message: plainText.slice(0, 100),
     excludeUserId: profile.id,
     targetUserId: ticket?.owner_id || undefined,
+    emailEnabled: commentType !== "internal",
   });
 
   revalidatePath(`/tickets/${ticketId}`);
+  return { success: true };
+}
+
+export async function saveCommentDraft(
+  ticketId: string,
+  content: string,
+  metadata: DraftMetadata,
+  draftId?: string
+) {
+  const { profile } = await requirePermission("tickets", "edit");
+  const supabase = await createClient();
+  const safeHtml = sanitizeRichTextHtml(content);
+  const plainText = stripHtmlTags(safeHtml);
+  if (!plainText.trim()) return { error: "Draft cannot be empty" };
+
+  const payload = {
+    content: safeHtml,
+    draft_metadata: metadata,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (draftId) {
+    const { data: existing } = await supabase
+      .from("ticket_comments")
+      .select("id, author_id, comment_type")
+      .eq("id", draftId)
+      .single();
+
+    if (!existing || existing.comment_type !== "draft") return { error: "Draft not found." };
+    if (existing.author_id !== profile.id && !["administrator", "hr_manager"].includes(profile.role)) {
+      return { error: "You do not have permission to edit this draft." };
+    }
+
+    const { error } = await supabase.from("ticket_comments").update(payload).eq("id", draftId);
+    if (error) return { error: error.message };
+    revalidatePath(`/tickets/${ticketId}`);
+    return { success: true, draftId };
+  }
+
+  const { data: existingDraft } = await supabase
+    .from("ticket_comments")
+    .select("id")
+    .eq("ticket_id", ticketId)
+    .eq("author_id", profile.id)
+    .eq("comment_type", "draft")
+    .maybeSingle();
+
+  if (existingDraft) {
+    const { error } = await supabase
+      .from("ticket_comments")
+      .update(payload)
+      .eq("id", existingDraft.id);
+    if (error) return { error: error.message };
+    revalidatePath(`/tickets/${ticketId}`);
+    return { success: true, draftId: existingDraft.id };
+  }
+
+  const { data: inserted, error } = await supabase
+    .from("ticket_comments")
+    .insert({
+      ticket_id: ticketId,
+      author_id: profile.id,
+      author_name: profile.full_name,
+      author_email: profile.email,
+      content: safeHtml,
+      comment_type: "draft",
+      draft_metadata: metadata,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath(`/tickets/${ticketId}`);
+  return { success: true, draftId: inserted.id };
+}
+
+export async function deleteCommentDraft(draftId: string) {
+  const { profile } = await requirePermission("tickets", "edit");
+  const supabase = await createClient();
+
+  const { data: draft } = await supabase
+    .from("ticket_comments")
+    .select("id, ticket_id, author_id, comment_type")
+    .eq("id", draftId)
+    .single();
+
+  if (!draft || draft.comment_type !== "draft") return { error: "Draft not found." };
+
+  const canDelete =
+    draft.author_id === profile.id ||
+    ["administrator", "hr_manager"].includes(profile.role);
+
+  if (!canDelete) return { error: "You do not have permission to discard this draft." };
+
+  await supabase.from("ticket_attachments").delete().eq("comment_id", draftId);
+  const { error } = await supabase.from("ticket_comments").delete().eq("id", draftId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/tickets/${draft.ticket_id}`);
+  return { success: true };
+}
+
+export async function sendCommentDraft(draftId: string) {
+  const { profile } = await requirePermission("tickets", "edit");
+  const supabase = await createClient();
+
+  const { data: draft } = await supabase
+    .from("ticket_comments")
+    .select("id, ticket_id, author_id, content, draft_metadata, comment_type")
+    .eq("id", draftId)
+    .single();
+
+  if (!draft || draft.comment_type !== "draft") return { error: "Draft not found." };
+
+  const canSend =
+    draft.author_id === profile.id ||
+    ["administrator", "hr_manager"].includes(profile.role);
+
+  if (!canSend) return { error: "You do not have permission to send this draft." };
+
+  const metadata = draft.draft_metadata as DraftMetadata | null;
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("ticket_number, subject, contact_email, owner_id")
+    .eq("id", draft.ticket_id)
+    .single();
+
+  if (!ticket) return { error: "Ticket not found." };
+
+  const safeHtml = draft.content;
+  const plainText = stripHtmlTags(safeHtml);
+  const isForward = metadata?.mode === "forward";
+  const prepared = await prepareOutboundEmailHtml(supabase, safeHtml, draft.ticket_id);
+  const toRecipients =
+    metadata?.to?.map((r) => r.email).filter(Boolean) ??
+    (isForward ? [] : [ticket.contact_email]);
+  const cc = metadata?.cc?.map((r) => r.email).filter(Boolean) ?? [];
+  const bcc = metadata?.bcc?.map((r) => r.email).filter(Boolean) ?? [];
+
+  if (toRecipients.length === 0) return { error: "Add at least one recipient before sending." };
+
+  const { data: reply, error: insertError } = await supabase
+    .from("ticket_comments")
+    .insert({
+      ticket_id: draft.ticket_id,
+      author_id: profile.id,
+      author_name: profile.full_name,
+      author_email: profile.email,
+      content: safeHtml,
+      comment_type: "reply",
+    })
+    .select("id")
+    .single();
+
+  if (insertError) return { error: insertError.message };
+
+  await supabase
+    .from("ticket_attachments")
+    .update({ comment_id: reply.id })
+    .eq("comment_id", draftId);
+
+  await supabase.from("ticket_comments").delete().eq("id", draftId);
+
+  const subject =
+    metadata?.subject ||
+    (isForward
+      ? `Fwd: ${ticket.ticket_number} - ${ticket.subject}`
+      : `Re: ${ticket.ticket_number} - ${ticket.subject}`);
+
+  for (const to of toRecipients) {
+    await sendEmailNotification({
+      to,
+      subject,
+      html: isForward
+        ? prepared.html
+        : `<p>${profile.full_name} replied to your ticket:</p><blockquote>${prepared.html}</blockquote>`,
+      cc,
+      bcc,
+      inlineAttachments: prepared.inlineAttachments,
+    });
+  }
+
+  await createNotification({
+    type: "ticket_reply",
+    ticketId: draft.ticket_id,
+    title: `New ${isForward ? "Forward" : "Reply"}: ${ticket.ticket_number}`,
+    message: plainText.slice(0, 100),
+    excludeUserId: profile.id,
+    targetUserId: ticket.owner_id || undefined,
+  });
+
+  revalidatePath(`/tickets/${draft.ticket_id}`);
+  return { success: true };
+}
+
+export async function deleteComment(commentId: string) {
+  const { profile } = await requirePermission("tickets", "edit");
+  const supabase = await createClient();
+
+  const { data: comment } = await supabase
+    .from("ticket_comments")
+    .select("id, ticket_id, author_id, comment_type")
+    .eq("id", commentId)
+    .single();
+
+  if (!comment) return { error: "Comment not found." };
+  if (comment.comment_type !== "internal" && comment.comment_type !== "draft") {
+    return { error: "Only internal comments or drafts can be deleted." };
+  }
+
+  const canDelete =
+    comment.author_id === profile.id ||
+    ["administrator", "hr_manager"].includes(profile.role);
+
+  if (!canDelete) return { error: "You do not have permission to delete this comment." };
+
+  const { error } = await supabase.from("ticket_comments").delete().eq("id", commentId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/tickets/${comment.ticket_id}`);
+  return { success: true };
+}
+
+export async function updateInternalComment(commentId: string, content: string) {
+  const { profile } = await requirePermission("tickets", "edit");
+  const supabase = await createClient();
+  const safeHtml = sanitizeRichTextHtml(content);
+  const plainText = stripHtmlTags(safeHtml);
+  if (!plainText.trim()) return { error: "Comment cannot be empty." };
+
+  const { data: comment } = await supabase
+    .from("ticket_comments")
+    .select("id, ticket_id, author_id, comment_type")
+    .eq("id", commentId)
+    .single();
+
+  if (!comment) return { error: "Comment not found." };
+  if (comment.comment_type !== "internal") {
+    return { error: "Only internal comments can be edited." };
+  }
+
+  const canEdit =
+    comment.author_id === profile.id ||
+    ["administrator", "hr_manager"].includes(profile.role);
+
+  if (!canEdit) return { error: "You do not have permission to edit this comment." };
+
+  const { error } = await supabase
+    .from("ticket_comments")
+    .update({ content: safeHtml })
+    .eq("id", commentId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/tickets/${comment.ticket_id}`);
   return { success: true };
 }
 
@@ -318,13 +588,18 @@ export async function deleteTimeLog(timeLogId: string) {
   return { success: true };
 }
 
-export async function uploadAttachment(ticketId: string, formData: FormData) {
+export async function uploadAttachment(
+  ticketId: string,
+  formData: FormData,
+  options?: { commentId?: string }
+) {
   await requirePermission("tickets", "edit");
   const supabase = await createClient();
   const file = formData.get("file") as File;
   if (!file) return { error: "No file provided." };
 
-  const filePath = `${ticketId}/${Date.now()}-${file.name}`;
+  const safeName = file.name.replace(/[^\w.-]/g, "_");
+  const filePath = `${ticketId}/${Date.now()}-${safeName}`;
   const { error: uploadError } = await supabase.storage
     .from("ticket-attachments")
     .upload(filePath, file);
@@ -333,14 +608,24 @@ export async function uploadAttachment(ticketId: string, formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from("ticket_attachments").insert({
+  const baseRecord = {
     ticket_id: ticketId,
+    comment_id: options?.commentId || null,
     file_name: file.name,
     file_path: filePath,
     file_size: file.size,
     mime_type: file.type,
     uploaded_by: user?.id,
+  };
+
+  let { error } = await supabase.from("ticket_attachments").insert({
+    ...baseRecord,
+    source: "internal",
   });
+
+  if (error?.message?.includes("source")) {
+    ({ error } = await supabase.from("ticket_attachments").insert(baseRecord));
+  }
 
   if (error) return { error: error.message };
 

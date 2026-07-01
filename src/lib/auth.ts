@@ -72,9 +72,21 @@ export function canAccess(
       return perm.can_edit;
     case "delete":
       return perm.can_delete;
+    case "enable":
+      return perm.can_enable ?? false;
     default:
       return false;
   }
+}
+
+export function getScheduledReportPermissions(permissions: RolePermission[]) {
+  return {
+    canView: canAccess(permissions, "scheduled_reports", "read"),
+    canCreate: canAccess(permissions, "scheduled_reports", "create"),
+    canEdit: canAccess(permissions, "scheduled_reports", "edit"),
+    canDelete: canAccess(permissions, "scheduled_reports", "delete"),
+    canEnable: canAccess(permissions, "scheduled_reports", "enable"),
+  };
 }
 
 export async function requireAuth() {

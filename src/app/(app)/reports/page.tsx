@@ -5,7 +5,7 @@ import { getLayoutContext } from "@/components/layout/dashboard-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportsCharts } from "@/components/reports/reports-charts";
 import { ReportsListView } from "@/components/reports/reports-list-view";
-import { canAccess } from "@/lib/auth";
+import { canAccess, getScheduledReportPermissions } from "@/lib/auth";
 import { getVisibleReportSectionsForRole } from "@/lib/queries";
 import { REPORT_DEFINITIONS } from "@/lib/reports/types";
 import { CUSTOM_REPORT_SECTION } from "@/lib/reports/sections";
@@ -70,6 +70,8 @@ export default async function ReportsPage() {
     avgResolutionHours = Math.round(totalHours / recentTickets.length);
   }
 
+  const schedulePermissions = getScheduledReportPermissions(ctx.permissions);
+
   const stats = [
     { label: "Total Tickets", value: totalTickets || 0 },
     { label: "Open Tickets", value: openTickets || 0 },
@@ -100,7 +102,11 @@ export default async function ReportsPage() {
           timeData={Object.values(userTimeMap).map((u) => ({ name: u.name, hours: Math.round(u.minutes / 60 * 10) / 10 }))}
         />
 
-        <ReportsListView reports={visibleReports} showCustomReport={showCustomReport} />
+        <ReportsListView
+          reports={visibleReports}
+          showCustomReport={showCustomReport}
+          showSchedules={schedulePermissions.canView}
+        />
       </PageContent>
     </>
   );

@@ -82,8 +82,29 @@ export function getPriorityColor(priority: string): string {
   return colors[priority] || "bg-muted text-muted-foreground ring-1 ring-inset ring-border";
 }
 
+export function decodeHtmlEntities(text: string): string {
+  let decoded = text;
+  for (let i = 0; i < 4; i += 1) {
+    const next = decoded
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&");
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded;
+}
+
 export function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Plain text for previews — strips tags then decodes entities like &lt;email&gt;. */
+export function htmlToPlainText(value: string): string {
+  return decodeHtmlEntities(stripHtmlTags(value));
 }
 
 export function sanitizeRichTextHtml(value: string): string {

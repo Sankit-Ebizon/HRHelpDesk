@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, Filter, Plus } from "lucide-react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Filter, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatTicketListDate, getInitials, getStatusColor } from "@/lib/utils";
-import { TICKET_STATUS_LABELS, TICKET_VIEWS, type Ticket, type TicketView } from "@/types";
-import { buildTicketDetailUrl, buildTicketViewListUrl, type TicketSearchParams } from "@/lib/ticket-url";
-import { TicketFilterPanel, countActiveFilters } from "@/components/tickets/ticket-filters";
+import {
+  TICKET_STATUS_LABELS,
+  type SavedTicketView,
+  type Ticket,
+  type TicketView,
+} from "@/types";
+import { TicketFilterPanel, countActiveFilters, filtersToTicketFilters } from "@/components/tickets/ticket-filters";
+import { DeleteCustomViewButton } from "@/components/tickets/custom-view-dialog";
+import { TicketViewsDropdown } from "@/components/tickets/ticket-views-dropdown";
+import { useRouter } from "next/navigation";
+import { buildTicketDetailUrl, buildTicketsQuery, type TicketSearchParams } from "@/lib/ticket-url";
 
 interface TicketListPanelProps {
   tickets: Ticket[];
@@ -17,7 +24,11 @@ interface TicketListPanelProps {
   viewCounts: Record<TicketView, number>;
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
   currentFilters: TicketSearchParams;
+  savedViews?: SavedTicketView[];
+  activeCustomView?: SavedTicketView | null;
+  starredSystemViews?: TicketView[];
   canCreate?: boolean;
 }
 
@@ -28,46 +39,33 @@ export function TicketListPanel({
   viewCounts,
   agents,
   categories,
+  departments = [],
   currentFilters,
+  savedViews = [],
+  activeCustomView,
+  starredSystemViews = [],
   canCreate,
 }: TicketListPanelProps) {
+  const router = useRouter();
   const [filterOpen, setFilterOpen] = useState(false);
+  const createViewHref = `/tickets/views/custom/new${buildTicketsQuery(currentFilters)}`;
+
   const activeFilterCount = countActiveFilters(currentFilters);
-  const currentView = TICKET_VIEWS.find((v) => v.id === view) ?? TICKET_VIEWS[2];
+  const ticketFilters = filtersToTicketFilters(currentFilters);
 
   return (
     <aside className="relative flex h-full w-full shrink-0 flex-col border-r border-border bg-[#f5f7f9] lg:w-[280px]">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-white px-3 py-2.5">
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-1 text-left text-[13px] font-semibold text-[#222]"
-            >
-              <span className="truncate">{currentView.label}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-[#444]" />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              align="start"
-              sideOffset={4}
-              className="z-50 min-w-[14rem] rounded border border-border bg-white p-1 shadow-md"
-            >
-              {TICKET_VIEWS.map((v) => (
-                <DropdownMenu.Item key={v.id} asChild>
-                  <Link
-                    href={buildTicketViewListUrl(v.id)}
-                    className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 text-[13px] font-medium text-[#222] outline-none hover:bg-[#f5f7f9] focus:bg-[#f5f7f9]"
-                  >
-                    <span>{v.label}</span>
-                    <span className="text-xs tabular-nums text-[#555]">{viewCounts[v.id]}</span>
-                  </Link>
-                </DropdownMenu.Item>
-              ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+        <TicketViewsDropdown
+          view={view}
+          viewCounts={viewCounts}
+          currentFilters={currentFilters}
+          savedViews={savedViews}
+          starredSystemViews={starredSystemViews}
+          activeCustomView={activeCustomView}
+          listCount={tickets.length}
+          variant="panel"
+        />
 
         <div className="flex shrink-0 items-center gap-1">
           <Button
@@ -94,6 +92,18 @@ export function TicketListPanel({
         </div>
       </div>
 
+      {activeCustomView && (
+        <div className="flex items-center gap-1 border-b border-border bg-white px-3 py-1.5">
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
+            <Link href={`/tickets/views/custom/${activeCustomView.id}/edit`}>
+              <Pencil className="mr-1 h-3 w-3" />
+              Edit
+            </Link>
+          </Button>
+          <DeleteCustomViewButton view={activeCustomView} />
+        </div>
+      )}
+
       {filterOpen && (
         <div className="absolute inset-y-0 left-0 z-20 flex w-full max-w-[280px] flex-col border-r border-border bg-white shadow-lg lg:relative lg:max-w-none lg:shadow-none">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -106,8 +116,12 @@ export function TicketListPanel({
             <TicketFilterPanel
               agents={agents}
               categories={categories}
+              departments={departments}
               currentFilters={currentFilters}
+              ticketFilters={ticketFilters}
+              baseView={view}
               onClose={() => setFilterOpen(false)}
+              onSaveAsView={() => router.push(createViewHref)}
             />
           </div>
         </div>

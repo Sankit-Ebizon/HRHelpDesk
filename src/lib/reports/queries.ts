@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
 import type { ReportDateRange, ReportFilters, ReportResult, ReportType } from "./types";
 import { hasTicketFilters } from "./types";
 import { daysBetween, firstNameFromFullName } from "./date-ranges";
+import { getReportSupabase } from "./report-client";
 
 const HR_ROLES = ["administrator", "hr_manager", "hr_agent"];
 
@@ -41,7 +41,7 @@ function applyTicketFilters(query: any, filters?: ReportFilters) {
 async function getFilteredTicketIds(filters?: ReportFilters): Promise<string[] | null> {
   if (!hasTicketFilters(filters)) return null;
 
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase.from("tickets").select("id");
   query = applyTicketFilters(query, filters);
   const { data } = await query;
@@ -125,7 +125,7 @@ async function getTicketsCreatedReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
@@ -144,7 +144,7 @@ async function getTicketsClosedReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select(`
@@ -191,7 +191,7 @@ async function getTicketsClosedReport(
 }
 
 async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
 
@@ -229,7 +229,7 @@ async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResu
 }
 
 async function getOverdueTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
@@ -251,7 +251,7 @@ async function getAvgResolutionTimeReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
@@ -288,7 +288,7 @@ async function getTimeLoggedByHRReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   const { data: hrUsers } = await supabase
     .from("profiles")
     .select("id")
@@ -372,7 +372,7 @@ async function getTimesheetAgentReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   const emptyColumns = [
     { key: "name", label: "Name" },
     { key: "category", label: "category" },
@@ -453,7 +453,7 @@ async function getCategoryAnalysisReport(
   dateRange: ReportDateRange,
   filters?: ReportFilters
 ): Promise<ReportResult> {
-  const supabase = await createClient();
+  const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select("status, due_date, category:categories(name)")

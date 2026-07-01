@@ -26,6 +26,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, Search } from "lucide-react";
 import { OwnerMultiSelect } from "@/components/reports/owner-multi-select";
 import { ReportDetailHeader } from "@/components/reports/report-detail-header";
+import { ScheduleReportDialog } from "@/components/reports/schedule-report-dialog";
+import type { RecipientOption } from "@/components/reports/recipient-email-multi-select";
 
 function formatCellValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -55,6 +57,8 @@ interface ReportDetailViewProps {
   agents: { id: string; full_name: string }[];
   categories: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  canSchedule?: boolean;
+  recipientOptions?: RecipientOption[];
 }
 
 export function ReportDetailView({
@@ -62,6 +66,8 @@ export function ReportDetailView({
   agents,
   categories,
   departments,
+  canSchedule = false,
+  recipientOptions = [],
 }: ReportDetailViewProps) {
   const previousWeek = getPreviousCalendarWeek();
   const defaultRange =
@@ -138,10 +144,22 @@ export function ReportDetailView({
         title={displayTitle}
         description={report.description}
         actions={
-          <Button onClick={handleDownload} disabled={loading}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Excel
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canSchedule && (
+              <ScheduleReportDialog
+                reportName={displayTitle}
+                reportKind="fixed"
+                fixedReportType={report.id}
+                filters={appliedFilters}
+                usesDateRange={report.usesDateRange}
+                recipientOptions={recipientOptions}
+              />
+            )}
+            <Button onClick={handleDownload} disabled={loading}>
+              <Download className="h-4 w-4 mr-2" />
+              Download Excel
+            </Button>
+          </div>
         }
       />
 

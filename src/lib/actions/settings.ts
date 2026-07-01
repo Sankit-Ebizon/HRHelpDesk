@@ -236,7 +236,7 @@ export async function updateRoleReportSection(
 
 export async function updateRolePermission(
   permissionId: string,
-  field: "can_read" | "can_create" | "can_edit" | "can_delete",
+  field: "can_read" | "can_create" | "can_edit" | "can_delete" | "can_enable",
   value: boolean,
   role?: string
 ) {
@@ -254,6 +254,8 @@ export async function updateRolePermission(
   if (error) return { error: error.message };
   revalidatePath("/settings/permissions");
   if (role) revalidatePath(`/settings/permissions/${role}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/schedules");
   return { success: true };
 }
 
