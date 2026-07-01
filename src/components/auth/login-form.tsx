@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
-import { Loader2, Command } from "lucide-react";
+import { Loader2, Command, Eye, EyeOff } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { HRDashboardIllustration } from "@/components/illustrations/hr-dashboard-hero";
 
@@ -23,6 +23,7 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
   const defaultEmail = searchParams.get("email") || "";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!message) return;
@@ -118,7 +119,28 @@ export function LoginForm({ supportEmail }: LoginFormProps) {
                     Forgot password?
                   </Link>
                 </div>
-                <Input id="password" name="password" type="password" required placeholder="••••••••" />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowPassword((show) => !show)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full h-11" disabled={loading}>
                 {loading ? (
