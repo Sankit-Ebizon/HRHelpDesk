@@ -17,12 +17,14 @@ import {
   Shield,
   Building2,
   Globe,
+  Pencil,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials, cn } from "@/lib/utils";
 import { NotificationMenu } from "@/components/layout/notification-menu";
+import { EditProfileDialog } from "@/components/layout/edit-profile-dialog";
 import { getRoleLabel, USER_STATUS_LABELS, type Notification, type Profile, type UserStatus } from "@/types";
 import { useId, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -106,8 +108,30 @@ function ProfileDetailRow({
   );
 }
 
+function ProfileAvatar({
+  profile,
+  className,
+  fallbackClassName,
+}: {
+  profile: Profile;
+  className?: string;
+  fallbackClassName?: string;
+}) {
+  return (
+    <Avatar className={className}>
+      {profile.avatar_url ? (
+        <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
+      ) : null}
+      <AvatarFallback className={fallbackClassName}>
+        {getInitials(profile.full_name)}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 function ProfileMenu({ profile }: { profile: Profile }) {
   const logoutFormId = useId();
+  const [editOpen, setEditOpen] = useState(false);
   const roleLabel = getRoleLabel(profile.role);
   const departmentName = profile.department?.name;
 
@@ -125,11 +149,11 @@ function ProfileMenu({ profile }: { profile: Profile }) {
             )}
             aria-label="Open profile menu"
           >
-            <Avatar className="h-8 w-8 ring-2 ring-white/20">
-              <AvatarFallback className="bg-indigo-500 text-2xs text-white">
-                {getInitials(profile.full_name)}
-              </AvatarFallback>
-            </Avatar>
+            <ProfileAvatar
+              profile={profile}
+              className="h-8 w-8 ring-2 ring-white/20"
+              fallbackClassName="bg-indigo-500 text-2xs text-white"
+            />
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[hsl(221,39%,18%)] bg-emerald-400" />
           </button>
         </DropdownMenu.Trigger>
@@ -141,11 +165,11 @@ function ProfileMenu({ profile }: { profile: Profile }) {
             className="z-50 w-[280px] rounded-xl glass-panel p-1.5 shadow-elevated animate-in fade-in-0 zoom-in-95"
           >
             <div className="flex items-start gap-3 px-3 py-3">
-              <Avatar className="h-11 w-11 shrink-0 ring-2 ring-border/50">
-                <AvatarFallback className="bg-indigo-500 text-sm text-white">
-                  {getInitials(profile.full_name)}
-                </AvatarFallback>
-              </Avatar>
+              <ProfileAvatar
+                profile={profile}
+                className="h-11 w-11 shrink-0 ring-2 ring-border/50"
+                fallbackClassName="bg-indigo-500 text-sm text-white"
+              />
               <div className="min-w-0 flex-1 pt-0.5">
                 <p className="truncate text-sm font-semibold leading-tight text-foreground">
                   {profile.full_name}
@@ -174,6 +198,17 @@ function ProfileMenu({ profile }: { profile: Profile }) {
             <DropdownMenu.Item
               onSelect={(e) => {
                 e.preventDefault();
+                setEditOpen(true);
+              }}
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors hover:bg-muted/60"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit profile
+            </DropdownMenu.Item>
+
+            <DropdownMenu.Item
+              onSelect={(e) => {
+                e.preventDefault();
                 (document.getElementById(logoutFormId) as HTMLFormElement | null)?.requestSubmit();
               }}
               className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-400 outline-none transition-colors hover:bg-red-500/10"
@@ -184,6 +219,8 @@ function ProfileMenu({ profile }: { profile: Profile }) {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+
+      <EditProfileDialog profile={profile} open={editOpen} onOpenChange={setEditOpen} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/admin";
 import { unstable_noStore as noStore } from "next/cache";
+import { cache } from "react";
 import type { RoleDefinition, Ticket, TicketFilters, TicketView, SavedTicketView } from "@/types";
 
 const TICKET_SELECT = `
@@ -148,7 +149,7 @@ export async function getTicketByNumber(ticketNumber: string): Promise<Ticket | 
   return data as Ticket | null;
 }
 
-export async function getTicketCounts(userId?: string) {
+export const getTicketCounts = cache(async function getTicketCounts(userId?: string) {
   const supabase = await createClient();
   const now = new Date().toISOString();
 
@@ -185,7 +186,7 @@ export async function getTicketCounts(userId?: string) {
     overdue: overdue.count || 0,
     closed: closed.count || 0,
   };
-}
+});
 
 export async function getTicketComments(ticketId: string) {
   const supabase = await createClient();
@@ -408,7 +409,7 @@ export async function getUserById(id: string) {
   return { ...data, last_login_at: lastLogin };
 }
 
-export async function getNotifications(userId: string, limit = 20) {
+export const getNotifications = cache(async function getNotifications(userId: string, limit = 20) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("notifications")
@@ -417,7 +418,7 @@ export async function getNotifications(userId: string, limit = 20) {
     .order("created_at", { ascending: false })
     .limit(limit);
   return data || [];
-}
+});
 
 export async function getRolePermissionsMatrix() {
   const supabase = await createClient();
@@ -681,7 +682,7 @@ export async function runCustomReport(
   return [];
 }
 
-export async function getUnreadNotificationCount(userId: string) {
+export const getUnreadNotificationCount = cache(async function getUnreadNotificationCount(userId: string) {
   const supabase = await createClient();
   const { count } = await supabase
     .from("notifications")
@@ -689,7 +690,7 @@ export async function getUnreadNotificationCount(userId: string) {
     .eq("user_id", userId)
     .eq("is_read", false);
   return count || 0;
-}
+});
 
 function isMissingTableError(error: { code?: string; message?: string }): boolean {
   return (

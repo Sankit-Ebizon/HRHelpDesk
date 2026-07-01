@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
+  Loader2,
   Plus,
   Search,
   Star,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { TICKET_VIEWS, type SavedTicketView, type TicketView } from "@/types";
 import { buildCustomViewUrl, buildTicketViewListUrl, buildTicketsQuery, type TicketSearchParams } from "@/lib/ticket-url";
 import { toggleSystemViewStarAction, toggleTicketViewStarAction } from "@/lib/actions/ticket-views";
+import { resetGlobalLoading } from "@/lib/loading-store";
 import { toast } from "@/lib/toast-store";
 
 function formatViewCount(count: number): string {
@@ -52,6 +54,7 @@ export function TicketViewsSidebar({
   const [starredOpen, setStarredOpen] = useState(true);
   const [systemViewsOpen, setSystemViewsOpen] = useState(true);
   const [allViewsOpen, setAllViewsOpen] = useState(true);
+  const [starLoadingKey, setStarLoadingKey] = useState<string | null>(null);
 
   const createViewHref = `/tickets/views/custom/new${buildTicketsQuery(currentFilters)}`;
 
@@ -85,24 +88,38 @@ export function TicketViewsSidebar({
   async function handleToggleStar(savedView: SavedTicketView, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const result = await toggleTicketViewStarAction(savedView.id, !savedView.is_starred);
-    if (result.error) {
-      toast({ title: result.error, variant: "error" });
-      return;
+    const loadingKey = `custom:${savedView.id}`;
+    setStarLoadingKey(loadingKey);
+    try {
+      const result = await toggleTicketViewStarAction(savedView.id, !savedView.is_starred);
+      if (result.error) {
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      router.refresh();
+    } finally {
+      setStarLoadingKey(null);
+      resetGlobalLoading();
     }
-    router.refresh();
   }
 
   async function handleToggleSystemStar(systemViewId: TicketView, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const isStarred = starredSystemViews.includes(systemViewId);
-    const result = await toggleSystemViewStarAction(systemViewId, !isStarred);
-    if (result.error) {
-      toast({ title: result.error, variant: "error" });
-      return;
+    const loadingKey = `system:${systemViewId}`;
+    setStarLoadingKey(loadingKey);
+    try {
+      const isStarred = starredSystemViews.includes(systemViewId);
+      const result = await toggleSystemViewStarAction(systemViewId, !isStarred);
+      if (result.error) {
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      router.refresh();
+    } finally {
+      setStarLoadingKey(null);
+      resetGlobalLoading();
     }
-    router.refresh();
   }
 
   function isSystemViewActive(systemViewId: TicketView) {
@@ -115,8 +132,11 @@ export function TicketViewsSidebar({
     count: number;
     active: boolean;
     starred: boolean;
+    starLoadingKey: string;
     onStarClick: (e: React.MouseEvent) => void;
   }) {
+    const isStarLoading = starLoadingKey === options.starLoadingKey;
+
     return (
       <Link
         href={options.href}
@@ -130,16 +150,21 @@ export function TicketViewsSidebar({
       >
         <button
           type="button"
-          className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded p-0.5 opacity-70 hover:opacity-100 disabled:opacity-100"
           onClick={options.onStarClick}
+          disabled={isStarLoading}
           aria-label={options.starred ? "Unstar view" : "Star view"}
         >
-          <Star
-            className={cn(
-              "h-3.5 w-3.5",
-              options.starred ? "fill-amber-400 text-amber-400" : "text-[#8899aa]"
-            )}
-          />
+          {isStarLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7ec8ff]" />
+          ) : (
+            <Star
+              className={cn(
+                "h-3.5 w-3.5",
+                options.starred ? "fill-amber-400 text-amber-400" : "text-[#8899aa]"
+              )}
+            />
+          )}
         </button>
         <span className="min-w-0 flex-1 truncate">{options.label}</span>
         <span
@@ -222,6 +247,7 @@ export function TicketViewsSidebar({
                     count: viewCounts[systemView.id],
                     active: isSystemViewActive(systemView.id),
                     starred: true,
+                    starLoadingKey: `system:${systemView.id}`,
                     onStarClick: (e) => void handleToggleSystemStar(systemView.id, e),
                   })
                 )}
@@ -232,6 +258,7 @@ export function TicketViewsSidebar({
                     count: customViewCounts[savedView.id] ?? 0,
                     active: activeCustomView?.id === savedView.id,
                     starred: true,
+                    starLoadingKey: `custom:${savedView.id}`,
                     onStarClick: (e) => void handleToggleStar(savedView, e),
                   })
                 )}
@@ -267,6 +294,7 @@ export function TicketViewsSidebar({
                   count: viewCounts[systemView.id],
                   active: isSystemViewActive(systemView.id),
                   starred: false,
+                  starLoadingKey: `system:${systemView.id}`,
                   onStarClick: (e) => void handleToggleSystemStar(systemView.id, e),
                 })
               )
@@ -303,26 +331,27 @@ export function TicketViewsSidebar({
                   count: customViewCounts[savedView.id] ?? 0,
                   active: activeCustomView?.id === savedView.id,
                   starred: false,
+                  starLoadingKey: `custom:${savedView.id}`,
                   onStarClick: (e) => void handleToggleStar(savedView, e),
                 })
               )
             )}
           </div>
         )}
-      </div>
 
-      <div className="border-t border-[#1a2332] p-2">
-        <Button
-          asChild
-          variant="ghost"
-          size="sm"
-          className="h-8 w-full justify-start text-[12px] text-[#9eb0c3] hover:bg-[#2f3d4f] hover:text-white"
-        >
-          <Link href={createViewHref}>
-            <Plus className="mr-2 h-3.5 w-3.5" />
-            Add Custom View
-          </Link>
-        </Button>
+        <div className="mt-2 px-0">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 w-full justify-start text-[12px] text-[#9eb0c3] hover:bg-[#2f3d4f] hover:text-white"
+          >
+            <Link href={createViewHref}>
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              Add Custom View
+            </Link>
+          </Button>
+        </div>
       </div>
     </aside>
   );

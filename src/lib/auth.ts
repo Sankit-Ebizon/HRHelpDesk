@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { cache } from "react";
 import type { Profile, PermissionAction, RolePermission, RoleReportSection } from "@/types";
 
-export async function getCurrentProfile(): Promise<Profile | null> {
+export const getCurrentProfile = cache(async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,9 +21,9 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   }
 
   return data as Profile | null;
-}
+});
 
-export async function getUserPermissions(
+export const getUserPermissions = cache(async function getUserPermissions(
   role: Profile["role"]
 ): Promise<RolePermission[]> {
   const supabase = await createClient();
@@ -32,7 +33,7 @@ export async function getUserPermissions(
     .eq("role", role);
 
   return (data as RolePermission[]) || [];
-}
+});
 
 export function canViewReportSection(
   sections: RoleReportSection[],

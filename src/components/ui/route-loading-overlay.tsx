@@ -4,7 +4,7 @@ import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { beginLoading, resetGlobalLoading, subscribeGlobalLoading } from "@/lib/loading-store";
 
-const NAV_LOADER_DELAY_MS = 120;
+const NAV_LOADER_DELAY_MS = 450;
 const LOADER_SAFETY_TIMEOUT_MS = 15000;
 
 function shouldIgnoreHref(href: string) {
@@ -31,8 +31,8 @@ function currentLocation(pathname: string, searchKey: string): string {
 
 function LoadingText() {
   return (
-    <div className="loader-enter flex items-center gap-0.5 rounded-2xl glass-panel px-8 py-4 shadow-glow">
-      <span className="text-sm font-semibold tracking-tight gradient-text">Loading</span>
+    <div className="loader-enter flex items-center gap-0.5 rounded-full glass-panel px-4 py-2 shadow-glow">
+      <span className="text-xs font-semibold tracking-tight gradient-text">Loading</span>
       <span className="inline-flex w-[1.1em] text-primary">
         <span className="loader-dot">.</span>
         <span className="loader-dot">.</span>
@@ -78,6 +78,9 @@ export function RouteLoadingOverlay() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
+      // Ignore controls inside links (e.g. star toggles) — capture runs before their preventDefault.
+      if (target.closest("button, [role='button'], [data-no-loader='true']")) return;
+
       const link = target.closest("a[href]") as HTMLAnchorElement | null;
       if (!link) return;
       if (link.getAttribute("data-no-loader") === "true") return;
@@ -117,12 +120,9 @@ export function RouteLoadingOverlay() {
       role="status"
       aria-live="polite"
       aria-label="Loading"
-      className="fixed inset-0 z-[200] flex items-center justify-center"
+      className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center"
     >
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-md" aria-hidden />
-      <div className="relative z-10">
-        <LoadingText />
-      </div>
+      <LoadingText />
       <span className="sr-only">Loading</span>
     </div>
   );

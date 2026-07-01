@@ -15,6 +15,7 @@ import {
   type TicketSearchParams,
 } from "@/lib/ticket-url";
 import { toggleSystemViewStarAction, toggleTicketViewStarAction } from "@/lib/actions/ticket-views";
+import { resetGlobalLoading } from "@/lib/loading-store";
 import { toast } from "@/lib/toast-store";
 
 interface TicketViewsDropdownProps {
@@ -78,24 +79,32 @@ export function TicketViewsDropdown({
   async function handleToggleStar(savedView: SavedTicketView, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const result = await toggleTicketViewStarAction(savedView.id, !savedView.is_starred);
-    if (result.error) {
-      toast({ title: result.error, variant: "error" });
-      return;
+    try {
+      const result = await toggleTicketViewStarAction(savedView.id, !savedView.is_starred);
+      if (result.error) {
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      router.refresh();
+    } finally {
+      resetGlobalLoading();
     }
-    router.refresh();
   }
 
   async function handleToggleSystemStar(systemViewId: TicketView, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const isStarred = starredSystemViews.includes(systemViewId);
-    const result = await toggleSystemViewStarAction(systemViewId, !isStarred);
-    if (result.error) {
-      toast({ title: result.error, variant: "error" });
-      return;
+    try {
+      const isStarred = starredSystemViews.includes(systemViewId);
+      const result = await toggleSystemViewStarAction(systemViewId, !isStarred);
+      if (result.error) {
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      router.refresh();
+    } finally {
+      resetGlobalLoading();
     }
-    router.refresh();
   }
 
   const triggerClassName =
