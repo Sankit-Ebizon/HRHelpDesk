@@ -164,7 +164,7 @@ export function NewTicketForm({ departments, categories, agents, initialOwnerId 
               <Label>Ticket Owner</Label>
               <Select value={ownerId} onValueChange={setOwnerId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Auto-assign from department" />
+                  <SelectValue placeholder="Assign to yourself" />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.map((a) => (
@@ -173,7 +173,7 @@ export function NewTicketForm({ departments, categories, agents, initialOwnerId 
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Leave empty to assign the department&apos;s associate agent automatically.
+                Leave empty to assign the ticket to yourself.
               </p>
             </div>
             <div className="space-y-2">

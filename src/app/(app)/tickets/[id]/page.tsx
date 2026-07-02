@@ -13,9 +13,8 @@ import {
   getTicketCounts,
   getSupportEmail,
   getTicketPins,
-  getSavedTicketViews,
   getSavedTicketViewById,
-  getCustomViewCounts,
+  getSavedViewsWithCounts,
   getStarredSystemViews,
 } from "@/lib/queries";
 import { TicketsWorkspace } from "@/components/tickets/tickets-workspace";
@@ -84,10 +83,10 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
     agents,
     supportEmail,
     pins,
-    savedViews,
+    viewsBundle,
     starredSystemViews,
   ] = await Promise.all([
-    getTickets(view, filters, ctx.profile.id),
+    getTickets(view, filters, ctx.profile.id, { forList: true }),
     getTicketCounts(ctx.profile.id),
     getTicketComments(id),
     getTicketAttachments(id),
@@ -98,11 +97,11 @@ export default async function TicketDetailPage({ params, searchParams }: PagePro
     getHRAgents(),
     getSupportEmail(),
     getTicketPins(id),
-    getSavedTicketViews(),
+    getSavedViewsWithCounts(ctx.profile.id),
     getStarredSystemViews(),
   ]);
 
-  const customViewCounts = await getCustomViewCounts(savedViews, ctx.profile.id);
+  const { savedViews, customViewCounts } = viewsBundle;
 
   const viewCounts = {
     my_open: counts.my_open,

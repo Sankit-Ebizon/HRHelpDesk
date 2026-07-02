@@ -8,7 +8,7 @@ import {
   getDepartments,
   getSavedTicketViews,
   getSavedTicketViewById,
-  getCustomViewCounts,
+  getSavedViewsWithCounts,
   getStarredSystemViews,
 } from "@/lib/queries";
 import { TicketsWorkspace } from "@/components/tickets/tickets-workspace";
@@ -61,18 +61,18 @@ export default async function TicketsPage({ searchParams }: PageProps) {
     date_to: filters.date_to,
   };
 
-  const [tickets, counts, agents, categories, departments, savedViews, starredSystemViews] =
+  const [tickets, counts, agents, categories, departments, viewsBundle, starredSystemViews] =
     await Promise.all([
-    getTickets(view, filters, ctx.profile.id),
+    getTickets(view, filters, ctx.profile.id, { forList: true }),
     getTicketCounts(ctx.profile.id),
     getHRAgents(),
     getCategories(),
     getDepartments(),
-    getSavedTicketViews(),
+    getSavedViewsWithCounts(ctx.profile.id),
     getStarredSystemViews(),
   ]);
 
-  const customViewCounts = await getCustomViewCounts(savedViews, ctx.profile.id);
+  const { savedViews, customViewCounts } = viewsBundle;
 
   if (tickets.length > 0 && params.list !== "1") {
     redirect(buildTicketDetailUrl(tickets[0].id, currentFilters));

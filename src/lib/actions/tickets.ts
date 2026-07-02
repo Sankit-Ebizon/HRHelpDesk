@@ -42,11 +42,7 @@ export async function createTicket(formData: FormData) {
   const departmentId = (formData.get("department_id") as string) || null;
   const categoryId = (formData.get("category_id") as string) || null;
   const explicitOwnerId = (formData.get("owner_id") as string) || null;
-  const ownerId = await resolveTicketOwner(supabase, {
-    departmentId,
-    categoryId,
-    explicitOwnerId,
-  });
+  const ownerId = explicitOwnerId || profile.id;
 
   const { data, error } = await supabase
     .from("tickets")

@@ -8,8 +8,7 @@ import {
   getHRAgents,
   getCategories,
   getDepartments,
-  getSavedTicketViews,
-  getCustomViewCounts,
+  getSavedViewsWithCounts,
   getStarredSystemViews,
 } from "@/lib/queries";
 import { TICKET_VIEWS, type TicketView } from "@/types";
@@ -35,18 +34,18 @@ export default async function TicketViewListPage({ params }: PageProps) {
 
   const currentFilters = { view };
 
-  const [tickets, counts, agents, categories, departments, savedViews, starredSystemViews] =
+  const [tickets, counts, agents, categories, departments, viewsBundle, starredSystemViews] =
     await Promise.all([
-      getTickets(view, {}, ctx.profile.id),
+      getTickets(view, {}, ctx.profile.id, { forList: true }),
       getTicketCounts(ctx.profile.id),
       getHRAgents(),
       getCategories(),
       getDepartments(),
-      getSavedTicketViews(),
+      getSavedViewsWithCounts(ctx.profile.id),
       getStarredSystemViews(),
     ]);
 
-  const customViewCounts = await getCustomViewCounts(savedViews, ctx.profile.id);
+  const { savedViews, customViewCounts } = viewsBundle;
 
   const viewCounts = {
     my_open: counts.my_open,

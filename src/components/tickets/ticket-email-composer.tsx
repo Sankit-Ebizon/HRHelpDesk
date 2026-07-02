@@ -303,15 +303,44 @@ export function TicketEmailComposer({
     e.target.value = "";
   }
 
+  const composerActions = (
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        size="sm"
+        className={cn("zoho-btn-primary h-8 gap-1 px-4")}
+        onClick={handleSend}
+        disabled={loading || savingDraft}
+      >
+        <Send className="h-3.5 w-3.5" />
+        Send
+        <ChevronDown className="h-3.5 w-3.5 opacity-80" />
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-8 border-[#ccc] px-4 text-[13px] font-medium text-[#444] hover:bg-[#f5f7f9]"
+        onClick={handleCancel}
+        disabled={loading || savingDraft}
+      >
+        Cancel
+      </Button>
+    </div>
+  );
+
   return (
     <div className="mb-4 overflow-hidden rounded border border-[#d9e2ec] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#e8e8e8] bg-[#fafbfc] px-3 py-2">
         <span className="text-[12px] font-semibold uppercase tracking-wide text-[#555]">
           {composerTitle}
         </span>
-        <span className="text-[11px] text-[#999]">
-          {savingDraft ? "Saving draft..." : null}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[#999]">
+            {savingDraft ? "Saving draft..." : null}
+          </span>
+          {composerActions}
+        </div>
       </div>
 
       <div className="border-b border-[#e8e8e8]">
@@ -500,27 +529,7 @@ export function TicketEmailComposer({
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            className={cn("zoho-btn-primary h-8 gap-1 px-4")}
-            onClick={handleSend}
-            disabled={loading || savingDraft}
-          >
-            <Send className="h-3.5 w-3.5" />
-            Send
-            <ChevronDown className="h-3.5 w-3.5 opacity-80" />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 border-[#ccc] px-4 text-[13px] font-medium text-[#444] hover:bg-[#f5f7f9]"
-            onClick={handleCancel}
-            disabled={loading || savingDraft}
-          >
-            Cancel
-          </Button>
+          {composerActions}
         </div>
       </div>
     </div>

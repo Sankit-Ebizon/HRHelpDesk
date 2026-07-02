@@ -897,6 +897,16 @@ export function TicketDetailView({
                     <div className={cn("shrink-0 text-xs sm:w-36", isZoho ? "font-medium text-[#555]" : "text-muted-foreground")}>{formatDateTime(h.created_at)}</div>
                     <div className="min-w-0 break-words">
                       {(() => {
+                        if (h.field_name === "attachment") {
+                          return (
+                            <>
+                              <span className="font-medium">{h.user_name}</span>
+                              {" added attachment "}
+                              <span className="font-medium">{h.new_value}</span>
+                            </>
+                          );
+                        }
+
                         const fieldName = h.field_name === "owner_id"
                           ? "owner"
                           : h.field_name === "category_id"

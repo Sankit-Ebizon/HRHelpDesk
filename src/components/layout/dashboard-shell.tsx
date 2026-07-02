@@ -11,7 +11,7 @@ export async function DashboardShell({ children }: { children: React.ReactNode }
 
   const [unreadCount, notifications, ticketCounts, permissions] = await Promise.all([
     getUnreadNotificationCount(profile.id),
-    getNotifications(profile.id, 30),
+    getNotifications(profile.id, 15),
     getTicketCounts(profile.id),
     getUserPermissions(profile.role),
   ]);

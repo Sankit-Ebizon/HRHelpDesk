@@ -13,12 +13,73 @@ const TICKET_SELECT = `
   contact:contacts(id, full_name, email)
 `;
 
+const TICKET_LIST_SELECT = `
+  id, ticket_number, subject, status, priority, created_at, due_date, contact_name, contact_email, owner_id,
+  owner:profiles!tickets_owner_id_fkey(id, full_name, email)
+`;
+
+const TICKET_LIST_LIMIT = 100;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyTicketViewFilters(query: any, view: TicketView, filters: TicketFilters, userId?: string) {
+  let q = query;
+
+  switch (view) {
+    case "my_open":
+      if (userId) q = q.eq("owner_id", userId).in("status", ["open", "in_progress", "on_hold", "reopened"]);
+      break;
+    case "unassigned":
+      q = q.is("owner_id", null).not("status", "eq", "closed");
+      break;
+    case "overdue":
+      q = q.lt("due_date", new Date().toISOString()).not("status", "eq", "closed");
+      break;
+    case "all":
+      if (!filters.owner_id) q = q.not("status", "eq", "closed");
+      break;
+    case "closed":
+      q = q.eq("status", "closed");
+      break;
+  }
+
+  if (filters.status?.length) q = q.in("status", filters.status);
+  if (filters.owner_id) q = q.eq("owner_id", filters.owner_id);
+  if (filters.category_id) q = q.eq("category_id", filters.category_id);
+  if (filters.department_id) q = q.eq("department_id", filters.department_id);
+  if (filters.priority?.length) q = q.in("priority", filters.priority);
+  if (filters.date_from) q = q.gte("created_at", filters.date_from);
+  if (filters.date_to) q = q.lte("created_at", filters.date_to);
+  if (filters.search) {
+    q = q.or(
+      `subject.ilike.%${filters.search}%,ticket_number.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,contact_email.ilike.%${filters.search}%`
+    );
+  }
+
+  return q;
+}
+
 export async function getTickets(
   view: TicketView = "all",
   filters: TicketFilters = {},
-  userId?: string
+  userId?: string,
+  options?: { forList?: boolean; limit?: number }
 ): Promise<Ticket[]> {
+  const forList = options?.forList ?? false;
   const supabase = await createClient();
+  const limit = options?.limit ?? (forList ? TICKET_LIST_LIMIT : undefined);
+
+  if (forList) {
+    let query = supabase
+      .from("tickets")
+      .select(TICKET_LIST_SELECT)
+      .order("created_at", { ascending: false });
+    query = applyTicketViewFilters(query, view, filters, userId);
+    if (limit) query = query.limit(limit);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data as unknown as Ticket[]) || [];
+  }
+
   let query = supabase.from("tickets").select(TICKET_SELECT).order("created_at", { ascending: false });
 
   switch (view) {
@@ -53,6 +114,8 @@ export async function getTickets(
       `subject.ilike.%${filters.search}%,ticket_number.ilike.%${filters.search}%,contact_name.ilike.%${filters.search}%,contact_email.ilike.%${filters.search}%`
     );
   }
+
+  if (limit) query = query.limit(limit);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -238,7 +301,7 @@ export async function getTicketHistory(ticketId: string) {
   return data || [];
 }
 
-export async function getHRAgents() {
+export const getHRAgents = cache(async function getHRAgents() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
@@ -247,7 +310,7 @@ export async function getHRAgents() {
     .in("role", ["administrator", "hr_manager", "hr_agent"])
     .order("full_name");
   return data || [];
-}
+});
 
 export async function getRecipientEmailOptions() {
   const supabase = await createClient();
@@ -268,7 +331,7 @@ const DEPARTMENT_SELECT_WITH_CREATOR =
 const DEPARTMENT_SELECT_BASE =
   "*, associate_agent:profiles!associate_agent_id(id, full_name, email)";
 
-export async function getDepartments() {
+export const getDepartments = cache(async function getDepartments() {
   const supabase = await createClient();
   const withCreator = await supabase
     .from("departments")
@@ -284,7 +347,7 @@ export async function getDepartments() {
     .eq("is_active", true)
     .order("name");
   return fallback.data || [];
-}
+});
 
 export async function getDepartmentById(id: string) {
   const supabase = await createClient();
@@ -332,7 +395,7 @@ const CATEGORY_SELECT_WITH_CREATOR =
 const CATEGORY_SELECT_BASE =
   "*, subcategories(*), department:departments(id, name)";
 
-export async function getCategories() {
+export const getCategories = cache(async function getCategories() {
   const supabase = await createClient();
   const withCreator = await supabase
     .from("categories")
@@ -348,7 +411,7 @@ export async function getCategories() {
     .eq("is_active", true)
     .order("name");
   return fallback.data || [];
-}
+});
 
 export async function getAllCategoriesForSettings() {
   const supabase = await createClient();
@@ -495,8 +558,7 @@ export async function getRoleLabelMap(): Promise<Record<string, string>> {
   }, {});
 }
 
-export async function getSupportEmail() {
-  noStore();
+export const getSupportEmail = cache(async function getSupportEmail() {
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("app_settings")
@@ -505,7 +567,7 @@ export async function getSupportEmail() {
     .maybeSingle();
 
   return data?.value || process.env.HR_HELPDESK_EMAIL || "hrsupport@ebizondigital.com";
-}
+});
 
 export async function getNotificationPreferences(userId: string) {
   const supabase = await createClient();
@@ -699,7 +761,7 @@ function isMissingTableError(error: { code?: string; message?: string }): boolea
   );
 }
 
-export async function getSavedTicketViews(): Promise<SavedTicketView[]> {
+export const getSavedTicketViews = cache(async function getSavedTicketViews(): Promise<SavedTicketView[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("saved_ticket_views")
@@ -713,7 +775,7 @@ export async function getSavedTicketViews(): Promise<SavedTicketView[]> {
     throw error;
   }
   return (data as SavedTicketView[]) || [];
-}
+});
 
 export async function getSavedTicketViewById(id: string): Promise<SavedTicketView | null> {
   const supabase = await createClient();
@@ -730,7 +792,7 @@ export async function getSavedTicketViewById(id: string): Promise<SavedTicketVie
   return data as SavedTicketView | null;
 }
 
-export async function getStarredSystemViews(): Promise<TicketView[]> {
+export const getStarredSystemViews = cache(async function getStarredSystemViews(): Promise<TicketView[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("starred_system_ticket_views")
@@ -744,4 +806,10 @@ export async function getStarredSystemViews(): Promise<TicketView[]> {
   }
 
   return (data ?? []).map((row) => row.view_id as TicketView);
+});
+
+export async function getSavedViewsWithCounts(userId: string) {
+  const savedViews = await getSavedTicketViews();
+  const customViewCounts = await getCustomViewCounts(savedViews, userId);
+  return { savedViews, customViewCounts };
 }
