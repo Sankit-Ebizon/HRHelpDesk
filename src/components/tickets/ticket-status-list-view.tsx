@@ -80,6 +80,20 @@ export function TicketStatusListView({
     <div className="relative flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative h-8 w-8 text-[#444] hover:text-[#222]"
+            onClick={() => setFilterOpen((open) => !open)}
+            aria-label={filterOpen ? "Close filters" : "Open filters"}
+          >
+            <Filter className="h-4 w-4" />
+            {!filterOpen && activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {activeFilterCount > 9 ? "9+" : activeFilterCount}
+              </span>
+            )}
+          </Button>
           <TicketViewsDropdown
             view={view}
             viewCounts={viewCounts}
@@ -95,20 +109,6 @@ export function TicketStatusListView({
           <span className="text-[13px] font-medium text-[#555]">
             Total Count: <span className="tabular-nums text-[#222]">{tickets.length}</span>
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative h-8 w-8 text-[#444] hover:text-[#222]"
-            onClick={() => setFilterOpen((open) => !open)}
-            aria-label={filterOpen ? "Close filters" : "Open filters"}
-          >
-            <Filter className="h-4 w-4" />
-            {!filterOpen && activeFilterCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {activeFilterCount > 9 ? "9+" : activeFilterCount}
-              </span>
-            )}
-          </Button>
         </div>
       </div>
 
