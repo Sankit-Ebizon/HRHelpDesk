@@ -324,6 +324,7 @@ async function createTicketFromEmail(
   const syntheticHeaders = [
     `From: ${payload.from}`,
     `To: ${payload.to}`,
+    ...(ccHeader ? [`Cc: ${ccHeader}`] : []),
     `Subject: ${payload.subject || "Email Support Request"}`,
     "MIME-Version: 1.0",
     payload.html ? 'Content-Type: text/html; charset="UTF-8"' : 'Content-Type: text/plain; charset="UTF-8"',

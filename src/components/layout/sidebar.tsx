@@ -259,7 +259,7 @@ export function AppTopNav({
               alt="Ebizon"
               width={120}
               height={32}
-              className="h-12 w-28"
+              className="h-10 w-28"
               priority
             />
           </Link>

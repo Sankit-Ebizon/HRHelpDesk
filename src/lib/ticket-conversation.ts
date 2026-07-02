@@ -335,37 +335,140 @@ export function buildFullThreadQuote(
   });
 }
 
+function parseEmailHeaderLine(headers: string, name: string): string | undefined {
+  const match = headers.match(new RegExp(`^${name}:\\s*(.+)$`, "im"));
+  return match?.[1]?.trim();
+}
+
+export function parseRecipientList(value?: string): EmailRecipient[] {
+  if (!value?.trim()) return [];
+
+  const recipients: EmailRecipient[] = [];
+  const parts = value.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    const bracketMatch = trimmed.match(/^(?:"?([^"]*)"?\s)?<?([^>]+@[^>]+)>?$/);
+    if (bracketMatch) {
+      const email = bracketMatch[2].trim();
+      const name = bracketMatch[1]?.trim() || email;
+      recipients.push({ name, email });
+      continue;
+    }
+
+    if (trimmed.includes("@")) {
+      recipients.push({ name: trimmed, email: trimmed });
+    }
+  }
+
+  return recipients;
+}
+
+function parseCcFromEmailContent(content?: string | null): EmailRecipient[] {
+  if (!content) return [];
+
+  const text = content.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ");
+  const ccLineMatch = text.match(/\bCc:\s*([^\n\r]+)/i);
+  if (!ccLineMatch?.[1]) return [];
+
+  return parseRecipientList(ccLineMatch[1]);
+}
+
+function getReplyTargetMessage(
+  ticket: Ticket,
+  comments: TicketComment[],
+  messageId?: string
+): { headers: string | null; content: string | null; sender: EmailRecipient } {
+  const publicComments = comments.filter((comment) => comment.comment_type === "reply");
+
+  if (messageId === "initial" || (!messageId && publicComments.length === 0)) {
+    return {
+      headers: ticket.raw_email_headers ?? null,
+      content: ticket.raw_email_html || ticket.description,
+      sender: {
+        name: ticket.contact_name,
+        email: ticket.contact_email,
+      },
+    };
+  }
+
+  const comment =
+    messageId && messageId !== "initial"
+      ? publicComments.find((entry) => entry.id === messageId)
+      : publicComments[publicComments.length - 1];
+
+  if (comment) {
+    return {
+      headers: comment.raw_email_headers ?? null,
+      content: comment.raw_email_html || comment.content,
+      sender: {
+        name: comment.author_name,
+        email: comment.author_email || ticket.contact_email,
+      },
+    };
+  }
+
+  return {
+    headers: ticket.raw_email_headers ?? null,
+    content: ticket.raw_email_html || ticket.description,
+    sender: {
+      name: ticket.contact_name,
+      email: ticket.contact_email,
+    },
+  };
+}
+
 export function getReplyRecipients(
   ticket: Ticket,
   comments: TicketComment[],
   supportEmail: string,
-  mode: "reply" | "replyAll"
+  mode: "reply" | "replyAll",
+  options?: { messageId?: string; currentUserEmail?: string }
 ): { to: EmailRecipient[]; cc: EmailRecipient[] } {
-  const contact: EmailRecipient = {
-    name: ticket.contact_name,
-    email: ticket.contact_email,
-  };
+  const target = getReplyTargetMessage(ticket, comments, options?.messageId);
+  const to = [target.sender];
 
   if (mode === "reply") {
-    return { to: [contact], cc: [] };
+    return { to, cc: [] };
   }
 
   const ccMap = new Map<string, EmailRecipient>();
-  for (const address of supportEmail.split(",").map((e) => e.trim()).filter(Boolean)) {
-    ccMap.set(address.toLowerCase(), {
+  const normalize = (email: string) => email.toLowerCase();
+
+  if (target.headers) {
+    const toHeader = parseEmailHeaderLine(target.headers, "To");
+    const ccHeader = parseEmailHeaderLine(target.headers, "Cc");
+
+    for (const recipient of [
+      ...parseRecipientList(toHeader),
+      ...parseRecipientList(ccHeader),
+    ]) {
+      ccMap.set(normalize(recipient.email), recipient);
+    }
+  }
+
+  if (!parseEmailHeaderLine(target.headers || "", "Cc")) {
+    for (const recipient of parseCcFromEmailContent(target.content)) {
+      ccMap.set(normalize(recipient.email), recipient);
+    }
+  }
+
+  for (const address of supportEmail.split(",").map((email) => email.trim()).filter(Boolean)) {
+    ccMap.set(normalize(address), {
       name: "Helpdesk Support",
       email: address,
     });
   }
 
-  for (const comment of comments) {
-    if (comment.comment_type !== "reply" || !comment.author_email) continue;
-    const email = comment.author_email.toLowerCase();
-    if (email === ticket.contact_email.toLowerCase()) continue;
-    ccMap.set(email, { name: comment.author_name, email: comment.author_email });
+  ccMap.delete(normalize(target.sender.email));
+
+  if (options?.currentUserEmail) {
+    ccMap.delete(normalize(options.currentUserEmail));
   }
 
-  return { to: [contact], cc: Array.from(ccMap.values()) };
+  return { to, cc: Array.from(ccMap.values()) };
 }
 
 export function isEmailAttachment(attachment: TicketAttachment): boolean {

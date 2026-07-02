@@ -584,25 +584,6 @@ export function TicketDetailView({
 
       {/* Details Tab */}
       <TabsContent value="details" className="space-y-4">
-        {isZoho ? (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className={cn("text-base", isZoho && "font-semibold text-[#222]")}>
-                Description
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <EmailMessageContent
-                content={ticket.description}
-                attachments={initialMessageAttachments}
-                quotedInlineImageUrl={quotedInlineImageUrl}
-                expanded
-                collapsible={false}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
-
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">{isZoho ? "Ticket Details" : "Ticket Details"}</CardTitle>

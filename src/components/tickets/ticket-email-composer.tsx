@@ -134,7 +134,13 @@ export function TicketEmailComposer({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const draftId = editingDraft?.id;
 
-  const replyRecipients = getReplyRecipients(ticket, comments, supportEmail, mode === "replyAll" ? "replyAll" : "reply");
+  const replyRecipients = getReplyRecipients(
+    ticket,
+    comments,
+    supportEmail,
+    mode === "replyAll" ? "replyAll" : "reply",
+    { messageId, currentUserEmail: currentUser.email }
+  );
   const [toRecipients, setToRecipients] = useState<EmailRecipient[]>(
     editingDraft?.draft_metadata?.to ?? (mode === "forward" ? [] : replyRecipients.to)
   );
@@ -272,7 +278,7 @@ export function TicketEmailComposer({
     const html = getEditorHtml();
     if (!stripHtmlTags(html).trim()) return;
 
-    if (mode === "forward" && toRecipients.length === 0) {
+    if (toRecipients.length === 0) {
       toast({ title: "Enter at least one recipient", variant: "error" });
       return;
     }
@@ -351,29 +357,29 @@ export function TicketEmailComposer({
           </span>
         </div>
 
-        {mode === "forward" ? (
-          <>
-            <RecipientChips label="To" recipients={toRecipients} onRemove={removeTo} />
-            <div className="flex min-h-[36px] items-center gap-2 border-b border-[#e8e8e8] px-3 py-2">
-              <span className="w-10 shrink-0 text-[12px] font-medium text-[#666]">
-                {toRecipients.length > 0 ? "" : "To"}
-              </span>
-              <Input
-                className="h-7 flex-1 border-0 bg-transparent px-0 text-[12px] shadow-none focus-visible:ring-0"
-                placeholder="Enter the Recipients Email Address"
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter" && e.key !== ",") return;
-                  e.preventDefault();
-                  const recipient = parseRecipientInput(e.currentTarget.value);
-                  if (!recipient) return;
-                  setToRecipients((prev) =>
-                    prev.some((r) => r.email.toLowerCase() === recipient.email.toLowerCase())
-                      ? prev
-                      : [...prev, recipient]
-                  );
-                  e.currentTarget.value = "";
-                }}
-              />
+        <>
+          <RecipientChips label="To" recipients={toRecipients} onRemove={removeTo} />
+          <div className="flex min-h-[36px] items-center gap-2 border-b border-[#e8e8e8] px-3 py-2">
+            <span className="w-10 shrink-0 text-[12px] font-medium text-[#666]">
+              {toRecipients.length > 0 ? "" : "To"}
+            </span>
+            <Input
+              className="h-7 flex-1 border-0 bg-transparent px-0 text-[12px] shadow-none focus-visible:ring-0"
+              placeholder="Enter the Recipients Email Address"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== ",") return;
+                e.preventDefault();
+                const recipient = parseRecipientInput(e.currentTarget.value);
+                if (!recipient) return;
+                setToRecipients((prev) =>
+                  prev.some((r) => r.email.toLowerCase() === recipient.email.toLowerCase())
+                    ? prev
+                    : [...prev, recipient]
+                );
+                e.currentTarget.value = "";
+              }}
+            />
+            {mode === "forward" ? (
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
@@ -390,11 +396,9 @@ export function TicketEmailComposer({
                   Bcc
                 </button>
               </div>
-            </div>
-          </>
-        ) : (
-          <RecipientChips label="To" recipients={toRecipients} />
-        )}
+            ) : null}
+          </div>
+        </>
 
         {mode === "forward" && showCcInput ? (
           <div className="flex min-h-[36px] items-center gap-2 border-b border-[#e8e8e8] px-3 py-2">
