@@ -2,7 +2,7 @@ import { createServiceClient } from "@/lib/supabase/admin";
 import { sendEmailWithAttachment } from "@/lib/email";
 import { runCustomReport } from "@/lib/reports/custom-queries";
 import { buildReportWorkbookBuffer, getReportFilename } from "@/lib/reports/export";
-import { getPreviousCalendarWeek } from "@/lib/reports/date-ranges";
+import { resolveScheduleDateRange } from "@/lib/reports/date-ranges";
 import { getFixedReport } from "@/lib/reports/queries";
 import { withReportServiceClient } from "@/lib/reports/report-client";
 import {
@@ -11,22 +11,15 @@ import {
   scheduleTimingFromReport,
 } from "@/lib/reports/schedule-types";
 import type { ScheduledReport } from "@/lib/reports/schedule-types";
-import { getDefaultDateRange } from "@/lib/reports/types";
 import type { CustomReportConfig, ReportDateRange, ReportFilters, ReportType } from "@/lib/reports/types";
 
 function resolveDateRange(schedule: ScheduledReport): ReportDateRange | undefined {
-  if (schedule.date_range_mode === "none") return undefined;
-  if (schedule.date_range_mode === "previous_week") return getPreviousCalendarWeek();
-  return getDefaultDateRange();
+  return resolveScheduleDateRange(schedule.date_range_mode);
 }
 
 function resolveCustomDateRange(schedule: ScheduledReport): { dateFrom?: string; dateTo?: string } {
-  if (schedule.date_range_mode === "none") return {};
-  if (schedule.date_range_mode === "previous_week") {
-    const range = getPreviousCalendarWeek();
-    return { dateFrom: range.dateFrom, dateTo: range.dateTo };
-  }
-  const range = getDefaultDateRange();
+  const range = resolveScheduleDateRange(schedule.date_range_mode);
+  if (!range) return {};
   return { dateFrom: range.dateFrom, dateTo: range.dateTo };
 }
 

@@ -86,7 +86,16 @@ export function emailTextFromContent(content: string): string {
     return decodeHtmlEntities(trimmed.replace(/\r\n/g, "\n"));
   }
 
-  let text = trimmed
+  // Remove non-body markup that frequently contains CSS/metadata from mail clients.
+  const cleanedHtml = trimmed
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<head[\s\S]*?>[\s\S]*?<\/head>/gi, "")
+    .replace(/<title[\s\S]*?>[\s\S]*?<\/title>/gi, "")
+    .replace(/<meta[^>]*>/gi, "")
+    .replace(/<link[^>]*>/gi, "");
+
+  let text = cleanedHtml
     .replace(/\r\n/g, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>\s*/gi, "\n")
@@ -154,6 +163,11 @@ export function normalizeOutlookPlainText(text: string): string {
 
 export function sanitizeEmailHtml(html: string): string {
   return html
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<head[\s\S]*?>[\s\S]*?<\/head>/gi, "")
+    .replace(/<title[\s\S]*?>[\s\S]*?<\/title>/gi, "")
+    .replace(/<meta[^>]*>/gi, "")
+    .replace(/<link[^>]*>/gi, "")
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
     .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "")
     .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")

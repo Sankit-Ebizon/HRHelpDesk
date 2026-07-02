@@ -152,15 +152,24 @@ export async function downloadResendAttachment(
 export function resendEventToInboundPayload(
   event: ResendReceivedEvent,
   email: ResendReceivedEmail
-): { from: string; from_name?: string; to: string; subject: string; text?: string; html?: string } {
+): {
+  from: string;
+  from_name?: string;
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  headers?: Record<string, string>;
+} {
   const fromHeader = email.headers?.from;
   const from = fromHeader || event.data.from;
   return {
     from,
     from_name: fromHeader ? parseNameFromFromHeader(fromHeader) : undefined,
-    to: event.data.to[0] || "",
+    to: event.data.to.join(", ") || "",
     subject: event.data.subject || "Email Support Request",
     text: email.text || undefined,
     html: email.html || undefined,
+    headers: email.headers,
   };
 }

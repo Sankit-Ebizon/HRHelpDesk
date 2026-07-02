@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   Select,
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { updateTicket } from "@/lib/actions/tickets";
 import { runWithLoading } from "@/lib/loading-store";
 import { formatDate, getInitials } from "@/lib/utils";
+import { toast } from "@/lib/toast-store";
 import {
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
@@ -24,26 +26,59 @@ import {
 interface TicketPropertiesPanelProps {
   ticket: Ticket;
   agents: { id: string; full_name: string }[];
+  categories: { id: string; name: string; subcategories?: { id: string; name: string }[] }[];
 }
 
-function buildFormData(ticket: Ticket, overrides: Record<string, string | null | undefined>): FormData {
-  const fd = new FormData();
-  fd.set("subject", ticket.subject);
-  fd.set("description", ticket.description);
-  fd.set("contact_name", ticket.contact_name);
-  fd.set("contact_email", ticket.contact_email);
-  fd.set("contact_details", ticket.contact_details || "");
-  fd.set("department_id", ticket.department_id || "");
-  fd.set("category_id", ticket.category_id || "");
-  fd.set("subcategory_id", ticket.subcategory_id || "");
-  fd.set("priority", ticket.priority);
-  fd.set("status", ticket.status);
-  fd.set("owner_id", ticket.owner_id || "");
-  fd.set("due_date", ticket.due_date?.split("T")[0] || "");
+interface TicketPatchSnapshot {
+  subject: string;
+  description: string;
+  contact_name: string;
+  contact_email: string;
+  contact_details: string;
+  department_id: string;
+  category_id: string;
+  subcategory_id: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  owner_id: string;
+  due_date: string;
+}
 
-  for (const [key, value] of Object.entries(overrides)) {
-    fd.set(key, value ?? "");
-  }
+function snapshotFromTicket(ticket: Ticket): TicketPatchSnapshot {
+  return {
+    subject: ticket.subject,
+    description: ticket.description,
+    contact_name: ticket.contact_name,
+    contact_email: ticket.contact_email,
+    contact_details: ticket.contact_details || "",
+    department_id: ticket.department_id || "",
+    category_id: ticket.category_id || "",
+    subcategory_id: ticket.subcategory_id || "",
+    priority: ticket.priority,
+    status: ticket.status,
+    owner_id: ticket.owner_id || "",
+    due_date: ticket.due_date?.split("T")[0] || "",
+  };
+}
+
+function buildFormDataFromSnapshot(
+  snapshot: TicketPatchSnapshot,
+  overrides: Partial<TicketPatchSnapshot>
+): FormData {
+  const next = { ...snapshot, ...overrides };
+  const fd = new FormData();
+  fd.set("subject", next.subject);
+  fd.set("description", next.description);
+  fd.set("contact_name", next.contact_name);
+  fd.set("contact_email", next.contact_email);
+  fd.set("contact_details", next.contact_details);
+  fd.set("department_id", next.department_id);
+  fd.set("category_id", next.category_id);
+  fd.set("subcategory_id", next.subcategory_id);
+  fd.set("priority", next.priority);
+  fd.set("status", next.status);
+  fd.set("owner_id", next.owner_id);
+  fd.set("due_date", next.due_date);
   return fd;
 }
 
@@ -82,13 +117,36 @@ function PropertyRow({ label, children }: { label: string; children: React.React
   );
 }
 
-export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelProps) {
+export function TicketPropertiesPanel({ ticket, agents, categories }: TicketPropertiesPanelProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [snapshot, setSnapshot] = useState<TicketPatchSnapshot>(() => snapshotFromTicket(ticket));
+  const snapshotRef = useRef(snapshot);
+  const selectedCategory = categories.find((category) => category.id === snapshot.category_id);
 
-  async function patch(overrides: Record<string, string | null | undefined>) {
+  useEffect(() => {
+    const next = snapshotFromTicket(ticket);
+    setSnapshot(next);
+    snapshotRef.current = next;
+  }, [ticket]);
+
+  async function patch(overrides: Partial<TicketPatchSnapshot>) {
+    const nextSnapshot = { ...snapshotRef.current, ...overrides };
+    setSnapshot(nextSnapshot);
+    snapshotRef.current = nextSnapshot;
     setLoading(true);
     try {
-      await runWithLoading(() => updateTicket(ticket.id, buildFormData(ticket, overrides)));
+      const result = await runWithLoading(() =>
+        updateTicket(ticket.id, buildFormDataFromSnapshot(snapshotRef.current, {}))
+      );
+      if (result?.error) {
+        const rollback = snapshotFromTicket(ticket);
+        setSnapshot(rollback);
+        snapshotRef.current = rollback;
+        toast({ title: result.error, variant: "error" });
+        return;
+      }
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -120,7 +178,7 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
       <PropertySection title="Key Information">
         <PropertyRow label="Ticket Owner">
           <Select
-            value={ticket.owner_id || "unassigned"}
+            value={snapshot.owner_id || "unassigned"}
             onValueChange={(v) => patch({ owner_id: v === "unassigned" ? "" : v })}
             disabled={loading}
           >
@@ -151,7 +209,7 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
 
         <PropertyRow label="Status">
           <Select
-            value={ticket.status}
+            value={snapshot.status}
             onValueChange={(v) => patch({ status: v as TicketStatus })}
             disabled={loading}
           >
@@ -172,7 +230,7 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
           <Input
             type="date"
             className="h-8 text-[13px] text-[#222]"
-            defaultValue={ticket.due_date?.split("T")[0] || ""}
+            value={snapshot.due_date}
             onChange={(e) => patch({ due_date: e.target.value || "" })}
             disabled={loading}
           />
@@ -180,7 +238,7 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
 
         <PropertyRow label="Priority">
           <Select
-            value={ticket.priority}
+            value={snapshot.priority}
             onValueChange={(v) => patch({ priority: v as TicketPriority })}
             disabled={loading}
           >
@@ -203,10 +261,48 @@ export function TicketPropertiesPanel({ ticket, agents }: TicketPropertiesPanelP
           <span className="font-mono font-medium">{ticket.ticket_number}</span>
         </PropertyRow>
         <PropertyRow label="Category">
-          <span>{ticket.category?.name || "—"}</span>
+          <Select
+            value={snapshot.category_id || "none"}
+            onValueChange={(v) =>
+              patch({
+                category_id: v === "none" ? "" : v,
+                // Prevent stale sub-category when category changes.
+                subcategory_id: "",
+              })
+            }
+            disabled={loading}
+          >
+            <SelectTrigger className="h-8 text-[13px] text-[#222]">
+              <SelectValue placeholder="Uncategorized" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Uncategorized</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </PropertyRow>
         <PropertyRow label="Sub-category">
-          <span>{ticket.subcategory?.name || "—"}</span>
+          <Select
+            value={snapshot.subcategory_id || "none"}
+            onValueChange={(v) => patch({ subcategory_id: v === "none" ? "" : v })}
+            disabled={loading || !selectedCategory?.subcategories?.length}
+          >
+            <SelectTrigger className="h-8 text-[13px] text-[#222]">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {(selectedCategory?.subcategories || []).map((subcategory) => (
+                <SelectItem key={subcategory.id} value={subcategory.id}>
+                  {subcategory.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </PropertyRow>
         <PropertyRow label="Created">
           <span>{formatDate(ticket.created_at)}</span>

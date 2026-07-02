@@ -161,7 +161,7 @@ export function TicketsWorkspace({
           <>
             {ticket && (
               <TicketConversationProvider>
-                <TicketPropertiesPanel ticket={ticket} agents={agents} />
+                <TicketPropertiesPanel ticket={ticket} agents={agents} categories={categoriesFull} />
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
                   <div className="border-b border-border px-4 py-3 sm:px-5">

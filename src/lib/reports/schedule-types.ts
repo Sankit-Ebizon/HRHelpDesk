@@ -1,7 +1,17 @@
 import { addDays } from "date-fns";
 import type { CustomReportConfig, ReportFilters, ReportType } from "./types";
 
-export type ScheduleDateRangeMode = "rolling_30d" | "previous_week" | "none";
+export type ScheduleDateRangeMode =
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "previous_week"
+  | "this_month"
+  | "last_month"
+  | "rolling_30d"
+  | "this_quarter"
+  | "last_quarter"
+  | "none";
 export type ScheduleReportKind = "fixed" | "custom";
 export type ScheduleFrequency = "daily" | "weekly" | "monthly";
 
@@ -71,10 +81,29 @@ export interface UpdateScheduledReportInput {
 }
 
 export const DATE_RANGE_MODE_LABELS: Record<ScheduleDateRangeMode, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  this_week: "This week",
+  previous_week: "Last week",
+  this_month: "This month",
+  last_month: "Last month",
   rolling_30d: "Last 30 days",
-  previous_week: "Previous calendar week",
+  this_quarter: "This quarter",
+  last_quarter: "Last quarter",
   none: "Current snapshot (no date range)",
 };
+
+export const SELECTABLE_DATE_RANGE_MODES: ScheduleDateRangeMode[] = [
+  "today",
+  "yesterday",
+  "this_week",
+  "previous_week",
+  "this_month",
+  "last_month",
+  "rolling_30d",
+  "this_quarter",
+  "last_quarter",
+];
 
 export const FREQUENCY_LABELS: Record<ScheduleFrequency, string> = {
   daily: "Daily",

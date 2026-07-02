@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createScheduledReportAction } from "@/lib/actions/scheduled-reports";
 import {
-  DATE_RANGE_MODE_LABELS,
   defaultDateRangeModeForReport,
   type ScheduleDateRangeMode,
   type ScheduleReportKind,
@@ -22,13 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   RecipientEmailMultiSelect,
   type RecipientOption,
 } from "@/components/reports/recipient-email-multi-select";
@@ -36,6 +28,7 @@ import {
   DEFAULT_SCHEDULE_TIMING,
   ScheduleTimingFields,
 } from "@/components/reports/schedule-timing-fields";
+import { ScheduleDateRangeSelect } from "@/components/reports/schedule-date-range-select";
 import { CalendarClock } from "lucide-react";
 
 interface ScheduleReportDialogProps {
@@ -137,26 +130,11 @@ export function ScheduleReportDialog({
             <ScheduleTimingFields value={timing} onChange={setTiming} />
 
             {usesDateRange && (
-              <div className="space-y-2">
-                <Label>Date Range</Label>
-                <Select
-                  value={dateRangeMode}
-                  onValueChange={(value) => setDateRangeMode(value as ScheduleDateRangeMode)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rolling_30d">{DATE_RANGE_MODE_LABELS.rolling_30d}</SelectItem>
-                    <SelectItem value="previous_week">
-                      {DATE_RANGE_MODE_LABELS.previous_week}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  The date range is recalculated each time the report runs.
-                </p>
-              </div>
+              <ScheduleDateRangeSelect
+                value={dateRangeMode}
+                onChange={setDateRangeMode}
+                showHelperText
+              />
             )}
 
             {!usesDateRange && (
