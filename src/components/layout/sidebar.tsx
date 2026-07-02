@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   LayoutDashboard,
@@ -12,7 +13,6 @@ import {
   Menu,
   X,
   UserCheck,
-  Command,
   Mail,
   Shield,
   Building2,
@@ -253,13 +253,15 @@ export function AppTopNav({
       >
         <div className="flex h-full items-center gap-3 px-3 sm:px-4 lg:px-5">
           {/* Brand */}
-          <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-              <Command className="h-4 w-4 text-white" />
-            </div>
-            <span className="hidden text-sm font-semibold tracking-tight text-white sm:inline">
-              HR Helpdesk
-            </span>
+          <Link href="/dashboard" className="flex shrink-0 items-center">
+            <Image
+              src="/Img/images.jpeg"
+              alt="Ebizon"
+              width={120}
+              height={32}
+              className="h-12 w-28"
+              priority
+            />
           </Link>
 
           {/* Desktop navigation */}

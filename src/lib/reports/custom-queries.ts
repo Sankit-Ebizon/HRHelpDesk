@@ -65,6 +65,17 @@ function columnKey(fieldKey: string): string {
   return fieldKey.replace(/\./g, "_");
 }
 
+/** Paths resolved in code — not real DB columns on the base table. */
+const COMPUTED_FIELD_PATHS = new Set([
+  "ticket_age_in_days",
+  "total_hours_spent",
+  "hours_spent",
+]);
+
+function isComputedFieldPath(path: string): boolean {
+  return COMPUTED_FIELD_PATHS.has(path);
+}
+
 function buildSelect(moduleId: string, joinId: string | undefined, fields: ReportFieldDef[]): string {
   const module = getReportModule(moduleId);
   if (!module) return "*";
@@ -74,7 +85,7 @@ function buildSelect(moduleId: string, joinId: string | undefined, fields: Repor
   for (const field of fields) {
     if (field.key.startsWith(`${moduleId}.`)) {
       const basePath = field.path;
-      if (!basePath.includes(".")) {
+      if (!basePath.includes(".") && !isComputedFieldPath(basePath)) {
         parts.add(basePath);
       }
     }

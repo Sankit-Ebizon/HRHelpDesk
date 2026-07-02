@@ -45,6 +45,7 @@ export function CustomReportBuilder({
   const [reportName, setReportName] = useState("Custom Report");
   const [moduleId, setModuleId] = useState(REPORT_MODULES[0].id);
   const [joinId, setJoinId] = useState<string>("");
+  const [fieldSearch, setFieldSearch] = useState("");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,12 +56,18 @@ export function CustomReportBuilder({
     () => getAvailableFields(moduleId, joinId || undefined),
     [moduleId, joinId]
   );
-  const unselectedFields = availableFields.filter((field) => !selectedFields.includes(field.key));
+  const normalizedFieldSearch = fieldSearch.trim().toLowerCase();
+  const unselectedFields = availableFields.filter((field) => {
+    if (selectedFields.includes(field.key)) return false;
+    if (!normalizedFieldSearch) return true;
+    return field.label.toLowerCase().includes(normalizedFieldSearch);
+  });
 
   useEffect(() => {
     setSelectedFields([]);
     setJoinId("");
     setResult(null);
+    setFieldSearch("");
   }, [moduleId]);
 
   useEffect(() => {
@@ -141,9 +148,16 @@ export function CustomReportBuilder({
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border bg-muted/20 px-4 py-3">
+        <p className="text-sm font-medium text-foreground">Build your report in 3 steps</p>
+        <p className="text-xs text-muted-foreground">
+          1) Choose source, 2) choose columns, 3) run and export.
+        </p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="custom-report-name">Report Name</Label>
+          <Label htmlFor="custom-report-name">Step 1: Report Name</Label>
           <Input
             id="custom-report-name"
             value={reportName}
@@ -152,7 +166,7 @@ export function CustomReportBuilder({
           />
         </div>
         <div className="space-y-2">
-          <Label>Module</Label>
+          <Label>Step 1: Data Source</Label>
           <Select value={moduleId} onValueChange={setModuleId}>
             <SelectTrigger>
               <SelectValue />
@@ -168,7 +182,7 @@ export function CustomReportBuilder({
           <p className="text-xs text-muted-foreground">{activeModule.description}</p>
         </div>
         <div className="space-y-2">
-          <Label>Sub-module (Join)</Label>
+          <Label>Step 1: Related Data (Optional)</Label>
           <Select
             value={joinId || "none"}
             onValueChange={(value) => setJoinId(value === "none" ? "" : value)}
@@ -186,17 +200,27 @@ export function CustomReportBuilder({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Join related data from another table into your report.
+            Add extra fields from another table if needed.
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="text-sm font-medium">Available Fields</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-medium">Step 2: Available Columns</h3>
+            <Input
+              value={fieldSearch}
+              onChange={(event) => setFieldSearch(event.target.value)}
+              placeholder="Search columns..."
+              className="h-8 max-w-[180px]"
+            />
+          </div>
           <div className="max-h-64 overflow-y-auto space-y-1">
             {unselectedFields.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All fields have been added.</p>
+              <p className="text-sm text-muted-foreground">
+                {normalizedFieldSearch ? "No matching columns found." : "All columns have been added."}
+              </p>
             ) : (
               unselectedFields.map((field) => (
                 <button
@@ -214,7 +238,17 @@ export function CustomReportBuilder({
         </div>
 
         <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="text-sm font-medium">Selected Fields ({selectedFields.length})</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-medium">Step 2: Selected Columns ({selectedFields.length})</h3>
+            {selectedFields.length > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedFields([])}>
+                Clear all
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Tip: top-to-bottom order here is the column order in the report.
+          </p>
           <div className="max-h-64 overflow-y-auto space-y-1">
             {selectedFields.length === 0 ? (
               <p className="text-sm text-muted-foreground">Add at least one field to run the report.</p>
@@ -264,9 +298,10 @@ export function CustomReportBuilder({
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Label className="w-full text-xs text-muted-foreground">Step 3: Generate Output</Label>
         <Button onClick={() => void runReport()} disabled={loading || selectedFields.length === 0}>
           <Play className="h-4 w-4 mr-2" />
-          Run Report
+          Preview Report
         </Button>
         <Button
           variant="secondary"
