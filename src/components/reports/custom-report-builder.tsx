@@ -41,12 +41,14 @@ export function CustomReportBuilder({
   canSchedule = false,
   recipientOptions = [],
 }: CustomReportBuilderProps) {
+  const ROWS_PER_PAGE = 10;
   const [reportName, setReportName] = useState("Custom Report");
   const [moduleId, setModuleId] = useState(REPORT_MODULES[0].id);
   const [joinId, setJoinId] = useState<string>("");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const activeModule = REPORT_MODULES.find((module) => module.id === moduleId)!;
   const availableFields = useMemo(
@@ -104,6 +106,7 @@ export function CustomReportBuilder({
 
       const data = await runWithLoading(() => runCustomReportAction(config));
       setResult(data);
+      setCurrentPage(1);
       return data;
     } finally {
       setLoading(false);
@@ -129,6 +132,12 @@ export function CustomReportBuilder({
           filters: moduleId === "tickets" ? filters : undefined,
         }
       : undefined;
+  const totalRows = result?.rows.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ROWS_PER_PAGE;
+  const endIndex = startIndex + ROWS_PER_PAGE;
+  const paginatedRows = result?.rows.slice(startIndex, endIndex) ?? [];
 
   return (
     <div className="space-y-6">
@@ -282,20 +291,23 @@ export function CustomReportBuilder({
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Running report...</p>
       ) : result && result.rows.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>
                 {result.columns.map((column) => (
-                  <TableHead key={column.key}>{column.label}</TableHead>
+                  <TableHead key={column.key} className="px-2 py-1 text-[11px] font-semibold leading-tight">
+                    {column.label}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {result.rows.map((row, index) => (
+              {paginatedRows.map((row, index) => (
                 <TableRow key={index}>
                   {result.columns.map((column) => (
-                    <TableCell key={column.key} className="text-sm">
+                    <TableCell key={column.key} className="px-2 py-1 text-[12px] leading-tight">
                       {formatCellValue(row[column.key])}
                     </TableCell>
                   ))}
@@ -303,6 +315,35 @@ export function CustomReportBuilder({
               ))}
             </TableBody>
           </Table>
+          </div>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <p>
+              Showing {startIndex + 1}-{Math.min(endIndex, totalRows)} of {totalRows}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                Previous
+              </Button>
+              <span>
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       ) : result ? (
         <p className="text-sm text-muted-foreground py-8 text-center">

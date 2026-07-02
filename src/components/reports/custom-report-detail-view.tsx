@@ -51,6 +51,7 @@ export function CustomReportDetailView({
   canSchedule = false,
   recipientOptions = [],
 }: CustomReportDetailViewProps) {
+  const today = new Date().toISOString().split("T")[0];
   const defaultRange = getDefaultDateRange();
   const [dateFrom, setDateFrom] = useState(defaultRange.dateFrom);
   const [dateTo, setDateTo] = useState(defaultRange.dateTo);
@@ -84,6 +85,7 @@ export function CustomReportDetailView({
               id="report-date-from"
               type="date"
               value={dateFrom}
+              max={today}
               onChange={(event) => setDateFrom(event.target.value)}
             />
           </div>
@@ -93,6 +95,7 @@ export function CustomReportDetailView({
               id="report-date-to"
               type="date"
               value={dateTo}
+              max={today}
               onChange={(event) => setDateTo(event.target.value)}
             />
           </div>

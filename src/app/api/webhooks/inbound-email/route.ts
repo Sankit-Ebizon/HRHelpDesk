@@ -45,6 +45,11 @@ function logInboundRoutingDebug(debug: InboundRoutingDebug) {
   console.info("[inbound-email][debug]", JSON.stringify(debug));
 }
 
+function logInboundStep(step: string, payload: Record<string, unknown>) {
+  // Use error level so logs are visible in local/dev and serverless logs.
+  console.error(`[inbound-email][${step}]`, JSON.stringify(payload));
+}
+
 function extractEmailAddress(from: string): string {
   const bracketMatch = from.match(/<([^>]+)>/);
   if (bracketMatch?.[1]) {
@@ -299,6 +304,15 @@ async function createTicketFromEmail(
   );
 
   if (!isHelpdeskEmail) {
+    logInboundStep("rejected_not_helpdesk_recipient", {
+      to: payload.to,
+      toHeader,
+      ccHeader,
+      deliveredTo,
+      recipientAddresses,
+      helpdeskEmails,
+      subject: payload.subject,
+    });
     return { error: "Not addressed to helpdesk inbox", status: 400 };
   }
 
@@ -346,6 +360,18 @@ async function createTicketFromEmail(
   const isReplyIntent = isReplySubject || hasReplyHeaders;
   let matchStrategy = "new_ticket";
 
+  logInboundStep("parsed_inbound", {
+    from: payload.from,
+    parsedSenderEmail: contactEmail,
+    subject: payload.subject,
+    normalizedSubject: normalizedThreadSubject,
+    isReplySubject,
+    hasReplyHeaders,
+    inReplyToHeader,
+    referencesHeader,
+    recipientAddresses,
+  });
+
   let existingTicketId: string | null = null;
   let existingTicketNumber: string | null = null;
   let existingTicketSubject: string | null = null;
@@ -366,6 +392,11 @@ async function createTicketFromEmail(
       existingTicketSubject = existingByNumber.subject;
       existingTicketStatus = existingByNumber.status || null;
     }
+    logInboundStep("match_ticket_number", {
+      ticketNumbers,
+      matched: Boolean(existingByNumber),
+      chosenTicketId: existingByNumber?.id || null,
+    });
   }
 
   if (!existingTicketId) {
@@ -390,6 +421,11 @@ async function createTicketFromEmail(
         existingTicketSubject = existingByMessageId.subject;
         existingTicketStatus = existingByMessageId.status || null;
       }
+      logInboundStep("match_message_headers", {
+        referencedMessageIds,
+        matched: Boolean(existingByMessageId),
+        chosenTicketId: existingByMessageId?.id || null,
+      });
     }
   }
 
@@ -409,6 +445,11 @@ async function createTicketFromEmail(
       existingTicketSubject = latestByContact.subject;
       existingTicketStatus = latestByContact.status || null;
     }
+    logInboundStep("match_reply_subject_contact", {
+      normalizedSubject,
+      matched: Boolean(latestByContact),
+      chosenTicketId: latestByContact?.id || null,
+    });
   }
 
   if (!existingTicketId && normalizedThreadSubject) {
@@ -439,6 +480,12 @@ async function createTicketFromEmail(
       existingTicketSubject = matchedByThread.subject;
       existingTicketStatus = matchedByThread.status || null;
     }
+    logInboundStep("match_normalized_thread_subject", {
+      normalizedThreadSubject,
+      matched: Boolean(matchedByThread),
+      chosenTicketId: matchedByThread?.id || null,
+      candidateCount: candidateTickets?.length || 0,
+    });
   }
 
   // Hard guard: replies should stay in a prior ticket, never spawn "Re: ..." duplicates.
@@ -458,6 +505,11 @@ async function createTicketFromEmail(
       existingTicketSubject = latestByContactAnySubject.subject;
       existingTicketStatus = latestByContactAnySubject.status || null;
     }
+    logInboundStep("match_reply_intent_latest_contact_ticket", {
+      isReplyIntent,
+      matched: Boolean(latestByContactAnySubject),
+      chosenTicketId: latestByContactAnySubject?.id || null,
+    });
   }
 
   if (existingTicketId && existingTicketNumber) {
@@ -479,6 +531,10 @@ async function createTicketFromEmail(
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingTicketId);
+      logInboundStep("reopened_closed_ticket_on_reply", {
+        ticketId: existingTicketId,
+        ticketNumber: existingTicketNumber,
+      });
     }
 
     const { data: replyComment, error: replyError } = await supabase
@@ -556,6 +612,11 @@ async function createTicketFromEmail(
       matchStrategy,
     };
     logInboundRoutingDebug(debug);
+    logInboundStep("appended_reply_existing_ticket", {
+      ticketId: existingTicketId,
+      ticketNumber: existingTicketNumber,
+      matchStrategy,
+    });
     return { success: true, ticket_number: existingTicketNumber, status: 200, debug };
   }
 
@@ -641,6 +702,11 @@ async function createTicketFromEmail(
     matchStrategy,
   };
   logInboundRoutingDebug(debug);
+  logInboundStep("created_new_ticket", {
+    ticketId: ticket.id,
+    ticketNumber: ticket.ticket_number,
+    matchStrategy,
+  });
   return { success: true, ticket_number: ticket.ticket_number, status: 200, debug };
 }
 
@@ -655,6 +721,14 @@ async function handleResendWebhook(request: NextRequest) {
   if (event.type !== "email.received") {
     return NextResponse.json({ ok: true });
   }
+
+  logInboundStep("resend_event_received", {
+    type: event.type,
+    emailId: event.data.email_id,
+    from: event.data.from,
+    to: event.data.to,
+    subject: event.data.subject,
+  });
 
   const email = await fetchResendReceivedEmail(event.data.email_id);
   if (!email) {
@@ -676,6 +750,11 @@ async function handleResendWebhook(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  logInboundStep("webhook_received", {
+    isResend: isResendWebhook(request.headers),
+    contentType: request.headers.get("content-type"),
+    host: request.headers.get("host"),
+  });
   if (isResendWebhook(request.headers)) {
     return handleResendWebhook(request);
   }

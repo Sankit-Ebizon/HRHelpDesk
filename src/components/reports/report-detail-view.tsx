@@ -69,6 +69,8 @@ export function ReportDetailView({
   canSchedule = false,
   recipientOptions = [],
 }: ReportDetailViewProps) {
+  const ROWS_PER_PAGE = 10;
+  const today = new Date().toISOString().split("T")[0];
   const previousWeek = getPreviousCalendarWeek();
   const defaultRange =
     report.id === "timesheet-agent" ? previousWeek : getDefaultDateRange();
@@ -86,6 +88,7 @@ export function ReportDetailView({
   const [appliedFilters, setAppliedFilters] = useState<ReportFilters | undefined>();
   const [result, setResult] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadReport = useCallback(
     async (showTable = true) => {
@@ -98,6 +101,7 @@ export function ReportDetailView({
         const data = await runFixedReportAction(report.id as ReportType, dateRange, appliedFilters);
         if (showTable) {
           setResult(data);
+          setCurrentPage(1);
         }
         return data;
       } finally {
@@ -117,6 +121,7 @@ export function ReportDetailView({
     setAppliedFilters(
       buildFilters(contactName, contactEmail, ownerIds, categoryId, departmentId, timesheetAgentId)
     );
+    setCurrentPage(1);
   }
 
   async function handleDownload() {
@@ -137,6 +142,12 @@ export function ReportDetailView({
     report.id === "timesheet-agent" && selectedAgent
       ? `Timesheet ${selectedAgent.full_name}`
       : report.label;
+  const totalRows = result?.rows.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ROWS_PER_PAGE;
+  const endIndex = startIndex + ROWS_PER_PAGE;
+  const paginatedRows = result?.rows.slice(startIndex, endIndex) ?? [];
 
   return (
     <div className="space-y-6">
@@ -172,6 +183,7 @@ export function ReportDetailView({
                 id="report-date-from"
                 type="date"
                 value={dateFrom}
+                max={today}
                 onChange={(event) => setDateFrom(event.target.value)}
               />
             </div>
@@ -181,6 +193,7 @@ export function ReportDetailView({
                 id="report-date-to"
                 type="date"
                 value={dateTo}
+                max={today}
                 onChange={(event) => setDateTo(event.target.value)}
               />
             </div>
@@ -316,20 +329,23 @@ export function ReportDetailView({
         {loading ? (
           <p className="text-sm text-muted-foreground py-8 text-center">Loading report...</p>
         ) : result && result.rows.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="space-y-3">
+            <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
                   {result.columns.map((column) => (
-                    <TableHead key={column.key}>{column.label}</TableHead>
+                    <TableHead key={column.key} className="px-2 py-1 text-[11px] font-semibold leading-tight">
+                      {column.label}
+                    </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {result.rows.map((row, index) => (
+                {paginatedRows.map((row, index) => (
                   <TableRow key={index}>
                     {result.columns.map((column) => (
-                      <TableCell key={column.key} className="text-sm">
+                      <TableCell key={column.key} className="px-2 py-1 text-[14px] leading-tight">
                         {formatCellValue(row[column.key])}
                       </TableCell>
                     ))}
@@ -337,6 +353,35 @@ export function ReportDetailView({
                 ))}
               </TableBody>
             </Table>
+            </div>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <p>
+                Showing {startIndex + 1}-{Math.min(endIndex, totalRows)} of {totalRows}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                >
+                  Previous
+                </Button>
+                <span>
+                  Page {safePage} of {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         ) : result ? (
           <p className="text-sm text-muted-foreground py-8 text-center">

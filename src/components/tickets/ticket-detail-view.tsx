@@ -105,6 +105,9 @@ export function TicketDetailView({
     getSignatureInlineImageUrl(initialMessageAttachments) ??
     getSignatureInlineImageUrl(ticketLevelImageAttachments);
   const { internalComments, publicComments, draftComments } = partitionComments(comments);
+  const publicCommentsNewestFirst = [...publicComments].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
   const visibleDraftComments = draftComments.filter(
     (draft) => !discardedDraftIds.includes(draft.id)
   );
@@ -435,21 +438,7 @@ export function TicketDetailView({
               ))
             : null}
 
-          {isZoho ? (
-            <TicketConversationMessage
-              id="initial"
-              ticketId={ticket.id}
-              authorName={ticket.contact_name}
-              authorEmail={ticket.contact_email}
-              createdAt={ticket.created_at}
-              content={ticket.description}
-              attachments={attachmentsByMessage.get("initial") || []}
-              quotedInlineImageUrl={quotedInlineImageUrl}
-              menuType="public"
-              isPinned={pinnedMessageKeys.has("initial")}
-              variant="zoho"
-            />
-          ) : (
+          {isZoho ? null : (
           <Card>
             <CardContent className="p-4 pt-6 sm:p-6">
               <div className="flex gap-3">
@@ -469,7 +458,7 @@ export function TicketDetailView({
           )}
 
           {isZoho
-            ? publicComments.map((comment) => (
+            ? publicCommentsNewestFirst.map((comment) => (
                 <TicketCommentMessage
                   key={comment.id}
                   comment={comment}
@@ -509,6 +498,22 @@ export function TicketDetailView({
               </CardContent>
             </Card>
             ))}
+
+          {isZoho ? (
+            <TicketConversationMessage
+              id="initial"
+              ticketId={ticket.id}
+              authorName={ticket.contact_name}
+              authorEmail={ticket.contact_email}
+              createdAt={ticket.created_at}
+              content={ticket.description}
+              attachments={attachmentsByMessage.get("initial") || []}
+              quotedInlineImageUrl={quotedInlineImageUrl}
+              menuType="public"
+              isPinned={pinnedMessageKeys.has("initial")}
+              variant="zoho"
+            />
+          ) : null}
         </div>
 
         {!isZoho ? (

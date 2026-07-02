@@ -190,10 +190,11 @@ async function getTicketsClosedReport(
   };
 }
 
-async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
+async function getOpenTicketsReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await getReportSupabase();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
 
   let query = supabase
     .from("tickets")
@@ -202,7 +203,8 @@ async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResu
       category:categories(name)
     `)
     .in("status", ["open", "in_progress", "on_hold", "reopened"])
-    .lt("created_at", cutoff.toISOString());
+    .gte("created_at", dateRange.dateFrom)
+    .lte("created_at", `${dateRange.dateTo}T23:59:59.999Z`);
   query = applyTicketFilters(query, filters);
   const { data } = await query.order("created_at", { ascending: true });
 
@@ -228,13 +230,18 @@ async function getOpenTicketsReport(filters?: ReportFilters): Promise<ReportResu
   };
 }
 
-async function getOverdueTicketsReport(filters?: ReportFilters): Promise<ReportResult> {
+async function getOverdueTicketsReport(
+  dateRange: ReportDateRange,
+  filters?: ReportFilters
+): Promise<ReportResult> {
   const supabase = await getReportSupabase();
   let query = supabase
     .from("tickets")
     .select(TICKET_LIST_SELECT)
     .lt("due_date", new Date().toISOString())
-    .not("status", "eq", "closed");
+    .not("status", "eq", "closed")
+    .gte("due_date", dateRange.dateFrom)
+    .lte("due_date", dateRange.dateTo);
   query = applyTicketFilters(query, filters);
   const { data } = await query.order("due_date", { ascending: true });
 
@@ -517,9 +524,9 @@ export async function getFixedReport(
     case "tickets-closed":
       return getTicketsClosedReport(dateRange!, filters);
     case "open-tickets":
-      return getOpenTicketsReport(filters);
+      return getOpenTicketsReport(dateRange!, filters);
     case "overdue-tickets":
-      return getOverdueTicketsReport(filters);
+      return getOverdueTicketsReport(dateRange!, filters);
     case "avg-resolution-time":
       return getAvgResolutionTimeReport(dateRange!, filters);
     case "time-logged-hr":

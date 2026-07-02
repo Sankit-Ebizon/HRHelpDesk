@@ -88,14 +88,14 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {
     id: "open-tickets",
     label: "Open Tickets",
-    description: "Open tickets that have been open for more than 7 days",
-    usesDateRange: false,
+    description: "Open tickets within the selected date range",
+    usesDateRange: true,
   },
   {
     id: "overdue-tickets",
     label: "Overdue Tickets",
-    description: "Current snapshot of tickets past their due date",
-    usesDateRange: false,
+    description: "Overdue tickets within the selected due date range",
+    usesDateRange: true,
   },
   {
     id: "avg-resolution-time",
