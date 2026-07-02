@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, Pencil, Ticket as TicketIcon } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Filter, Mail, Pencil, Ticket as TicketIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { DeleteCustomViewButton } from "@/components/tickets/custom-view-dialog";
 import { TicketViewsDropdown } from "@/components/tickets/ticket-views-dropdown";
+import {
+  TicketFilterPanel,
+  countActiveFilters,
+  filtersToTicketFilters,
+} from "@/components/tickets/ticket-filters";
 import {
   cn,
   formatDate,
@@ -25,6 +32,7 @@ import {
 import {
   buildTicketDetailFromViewUrl,
   buildTicketDetailUrl,
+  buildTicketsQuery,
   type TicketSearchParams,
 } from "@/lib/ticket-url";
 
@@ -32,6 +40,9 @@ interface TicketStatusListViewProps {
   tickets: Ticket[];
   view: TicketView;
   viewCounts: Record<TicketView, number>;
+  agents?: { id: string; full_name: string }[];
+  categories?: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
   currentFilters: TicketSearchParams;
   savedViews?: SavedTicketView[];
   starredSystemViews?: TicketView[];
@@ -42,13 +53,21 @@ export function TicketStatusListView({
   tickets,
   view,
   viewCounts,
+  agents = [],
+  categories = [],
+  departments = [],
   currentFilters,
   savedViews = [],
   starredSystemViews = [],
   activeCustomView,
 }: TicketStatusListViewProps) {
+  const router = useRouter();
+  const [filterOpen, setFilterOpen] = useState(false);
   const currentView = TICKET_VIEWS.find((item) => item.id === view) ?? TICKET_VIEWS[2];
   const title = activeCustomView?.name ?? currentView.label;
+  const activeFilterCount = countActiveFilters(currentFilters);
+  const ticketFilters = filtersToTicketFilters(currentFilters);
+  const createViewHref = `/tickets/views/custom/new${buildTicketsQuery(currentFilters)}`;
 
   function ticketHref(ticketId: string) {
     if (activeCustomView && currentFilters) {
@@ -58,7 +77,7 @@ export function TicketStatusListView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
+    <div className="relative flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           <TicketViewsDropdown
@@ -76,8 +95,46 @@ export function TicketStatusListView({
           <span className="text-[13px] font-medium text-[#555]">
             Total Count: <span className="tabular-nums text-[#222]">{tickets.length}</span>
           </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative h-8 w-8 text-[#444] hover:text-[#222]"
+            onClick={() => setFilterOpen((open) => !open)}
+            aria-label={filterOpen ? "Close filters" : "Open filters"}
+          >
+            <Filter className="h-4 w-4" />
+            {!filterOpen && activeFilterCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {activeFilterCount > 9 ? "9+" : activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
+
+      {filterOpen && (
+        <>
+          <div
+            className="absolute inset-0 z-20 bg-black/20"
+            onClick={() => setFilterOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[320px] flex-col border-l border-border bg-white shadow-lg">
+            <div className="flex-1 overflow-y-auto">
+              <TicketFilterPanel
+                agents={agents}
+                categories={categories}
+                departments={departments}
+                currentFilters={currentFilters}
+                ticketFilters={ticketFilters}
+                baseView={view}
+                onClose={() => setFilterOpen(false)}
+                onSaveAsView={() => router.push(createViewHref)}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {activeCustomView && (
         <div className="flex items-center gap-1 border-b border-border px-4 py-1.5 sm:px-6">

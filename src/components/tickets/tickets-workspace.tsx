@@ -105,6 +105,9 @@ export function TicketsWorkspace({
               tickets={tickets}
               view={view}
               viewCounts={viewCounts}
+              agents={agents}
+              categories={categories}
+              departments={departments}
               currentFilters={currentFilters}
               savedViews={savedViews}
               starredSystemViews={starredSystemViews}
