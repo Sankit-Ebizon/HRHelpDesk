@@ -22,7 +22,10 @@ const PLAIN_SIGNATURE_MARKERS = [
 
 function findPlainTextSignatureSplitIndex(text: string): number {
   const cleaned = text.replace(/\r\n/g, "\n").trim();
-  const minIndex = Math.max(20, Math.floor(cleaned.length * 0.15));
+  // A small absolute floor (not a % of total) so a genuine sign-off still
+  // splits when the body is short but the signature/confidentiality is long.
+  // The markers require preceding whitespace, so index 0 (no body) never matches.
+  const minIndex = 4;
   let bestIndex = -1;
 
   for (const pattern of PLAIN_SIGNATURE_MARKERS) {
@@ -74,7 +77,28 @@ export interface SignatureFields {
   email?: string;
   address?: string;
   website?: string;
+  salutation?: string;
   confidentialityNote?: string;
+}
+
+/**
+ * Remove leftover CSS rules that mail clients (notably Outlook/Word) leave
+ * behind in the visible body — either as the contents of a stripped <style>
+ * block, or dumped into the text/plain alternative (e.g. "P {margin-top:0;}").
+ * Only blocks whose braces contain declarations (":" or ";") are removed, so
+ * ordinary prose that happens to use braces is preserved.
+ */
+export function stripLeftoverCss(text: string): string {
+  let out = text
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/@[a-zA-Z-]+[^{<>}]*\{[^{}<>]*\}/g, " ");
+  let prev: string;
+  do {
+    prev = out;
+    out = out.replace(/[^{}<>\n]*\{[^{}<>]*[:;][^{}<>]*\}/g, " ");
+  } while (out !== prev);
+  // Drop empty at-rule wrappers left after nested rules were removed.
+  return out.replace(/@[a-zA-Z-]+[^{<>}]*\{\s*\}/g, " ");
 }
 
 /** Extract plain text from email HTML or plain source while keeping line breaks. */
@@ -83,7 +107,8 @@ export function emailTextFromContent(content: string): string {
   if (!trimmed) return "";
 
   if (!/<[a-z]/i.test(trimmed)) {
-    return decodeHtmlEntities(trimmed.replace(/\r\n/g, "\n"));
+    const decoded = decodeHtmlEntities(trimmed.replace(/\r\n/g, "\n"));
+    return stripLeftoverCss(decoded).replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "").trim();
   }
 
   // Remove non-body markup that frequently contains CSS/metadata from mail clients.
@@ -106,6 +131,7 @@ export function emailTextFromContent(content: string): string {
     .replace(/<[^>]+>/g, "");
 
   text = decodeHtmlEntities(text);
+  text = stripLeftoverCss(text);
   text = text
     .replace(/[^\S\n]+/g, " ")
     .replace(/ *\n */g, "\n")
@@ -156,13 +182,18 @@ export function normalizeOutlookPlainText(text: string): string {
     .replace(/\[linkedin\]\s*<[^>]+>/gi, "")
     .replace(/\[LinkedIn\]\s*<[^>]+>/gi, "")
     .replace(/<https?:\/\/[^>]+>/gi, " ")
+    // Drop stray Outlook signature icon labels (@ = email, W = web, T = tel,
+    // E/M/P/F = email/mobile/phone/fax) left on their own line once the icon
+    // image is gone.
+    .replace(/(^|\n)[ \t]*[@wtempf][ \t]*\r?\n/gi, "$1")
+    .replace(/(?:^|\n)[ \t]*[@wtempf][ \t]*$/gi, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
 export function sanitizeEmailHtml(html: string): string {
-  return html
+  const sanitized = html
     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
     .replace(/<head[\s\S]*?>[\s\S]*?<\/head>/gi, "")
     .replace(/<title[\s\S]*?>[\s\S]*?<\/title>/gi, "")
@@ -173,6 +204,7 @@ export function sanitizeEmailHtml(html: string): string {
     .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
     .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
     .replace(/javascript:/gi, "");
+  return stripLeftoverCss(sanitized);
 }
 
 export function isHtmlContent(content: string): boolean {
@@ -329,12 +361,26 @@ function splitPlainTextEmail(text: string): { body: string; signature: string } 
 }
 
 function parsePlainSignatureFields(signatureText: string): SignatureFields {
+  const salutationMatch = signatureText.match(
+    /^(Kind regards|Best regards|Warm regards|Regards|Sincerely)[,.]?/i
+  );
+  const salutation = salutationMatch
+    ? `${salutationMatch[1].replace(/\s+/g, " ").trim()},`
+    : undefined;
+
   let text = signatureText
     .replace(/^(Kind regards|Best regards|Warm regards|Regards|Sincerely)[,.]?\s*/i, "")
     .replace(/^Thank you[\s\S]*?\.(\s+)/i, "")
     .replace(/\[LinkedIn\]\s*<[^>]+>/gi, "")
     .replace(/\[LinkedIn\]/gi, "")
     .replace(/\[cid:[^\]]+\]/gi, "")
+    // Strip Outlook signature icon labels that prefix a contact link
+    // (@ = email, W = web, T = tel, ...): "@ mahima@x.com", "W ebizondigital.com".
+    .replace(/(^|\s)@\s*(?=[\w.%+-]+@[\w.-]+\.[a-z]{2,})/gi, "$1")
+    .replace(
+      /(^|\s)[WTEMPF]\s+(?=[\w.%+-]+@[\w.-]+\.[a-z]{2,}|(?:https?:\/\/)?[\w-]+\.(?:com|in|org|net|io)\b)/g,
+      "$1"
+    )
     .trim();
 
   const confIdx = text.search(/Confidentiality Note:/i);
@@ -377,17 +423,19 @@ function parsePlainSignatureFields(signatureText: string): SignatureFields {
   }
 
   const words = remainder.split(" ").filter(Boolean);
+  // Drop any icon label (@, W, T, E, M, P, F) left stranded in the title.
+  const isIconLabel = (word: string) => /^[@WTEMPF]$/.test(word);
   let name = "";
   let title = "";
 
   if (words.length >= 2) {
     name = `${words[0]} ${words[1]}`;
-    title = words.slice(2).join(" ");
+    title = words.slice(2).filter((word) => !isIconLabel(word)).join(" ");
   } else if (words.length === 1) {
     name = words[0];
   }
 
-  return { name, title, phone, email, address, website, confidentialityNote };
+  return { name, title, phone, email, address, website, salutation, confidentialityNote };
 }
 
 function buildSignatureHtml(fields: SignatureFields, inlineImageUrl?: string): string {
@@ -397,59 +445,49 @@ function buildSignatureHtml(fields: SignatureFields, inlineImageUrl?: string): s
       : `https://${fields.website}`
     : null;
 
-  const photoCell = inlineImageUrl
-    ? `<td style="padding-right:16px;vertical-align:top;width:84px;">
-        <img src="${inlineImageUrl}" alt="" width="72" height="72" style="width:72px;height:72px;object-fit:cover;border-radius:2px;display:block;" />
-      </td>`
-    : "";
+  const salutation = fields.salutation || "Kind regards,";
+
+  const iconSpan = (glyph: string) =>
+    `<span style="display:inline-block;width:18px;color:#888;font-size:13px;vertical-align:top;">${glyph}</span>`;
 
   const contactLines = [
-    fields.phone
-      ? `<p style="margin:0;padding:0;font-size:13px;color:#333;line-height:1.6;">${escapeHtml(fields.phone)}</p>`
-      : "",
     fields.email
-      ? `<p style="margin:0;padding:0;font-size:13px;line-height:1.6;"><a href="mailto:${escapeHtml(fields.email)}" style="color:#1a73b5;text-decoration:none;">${escapeHtml(fields.email)}</a></p>`
+      ? `<p style="margin:2px 0 0;padding:0;font-size:13px;line-height:1.6;">${iconSpan("&#9993;")}<a href="mailto:${escapeHtml(fields.email)}" style="color:#1a73b5;text-decoration:none;">${escapeHtml(fields.email)}</a></p>`
+      : "",
+    websiteHref
+      ? `<p style="margin:2px 0 0;padding:0;font-size:13px;line-height:1.6;">${iconSpan("&#127760;")}<a href="${escapeHtml(websiteHref)}" style="color:#1a73b5;text-decoration:none;" target="_blank" rel="noopener noreferrer">${escapeHtml(fields.website!)}</a></p>`
+      : "",
+    fields.phone
+      ? `<p style="margin:2px 0 0;padding:0;font-size:13px;color:#333;line-height:1.6;">${iconSpan("&#9742;")}${escapeHtml(fields.phone)}</p>`
       : "",
     fields.address
-      ? `<p style="margin:6px 0 0;padding:0;font-size:13px;color:#333;line-height:1.5;">${escapeHtml(fields.address)}</p>`
+      ? `<p style="margin:2px 0 0;padding:0;font-size:13px;color:#333;line-height:1.5;">${iconSpan("&#128205;")}${escapeHtml(fields.address)}</p>`
       : "",
   ]
     .filter(Boolean)
     .join("");
 
-  const websiteCell = websiteHref
-    ? `<td style="vertical-align:top;text-align:right;padding-left:16px;width:40%;">
-        <a href="${escapeHtml(websiteHref)}" style="color:#1a73b5;text-decoration:none;font-size:13px;" target="_blank" rel="noopener noreferrer">${escapeHtml(fields.website!)}</a>
-      </td>`
-    : "";
+  const textBlock = `
+    <p style="margin:0 0 2px;padding:0;font-size:13px;color:#333;line-height:1.5;">${escapeHtml(salutation)}</p>
+    ${fields.name ? `<p style="margin:0;padding:0;font-size:13px;font-weight:bold;color:#222;line-height:1.5;">${escapeHtml(fields.name)}</p>` : ""}
+    ${fields.title ? `<p style="margin:0 0 6px;padding:0;font-size:13px;color:#333;line-height:1.5;">${escapeHtml(fields.title)}</p>` : ""}
+    ${contactLines}
+  `.trim();
+
+  const inner = inlineImageUrl
+    ? `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding-right:16px;vertical-align:top;width:84px;">
+            <img src="${inlineImageUrl}" alt="" width="72" height="72" style="width:72px;height:72px;object-fit:cover;border-radius:2px;display:block;" />
+          </td>
+          <td style="vertical-align:top;padding:0;">${textBlock}</td>
+        </tr>
+      </table>`
+    : textBlock;
 
   return `
     <div class="email-signature-block" style="margin-top:12px;padding-top:0;font-family:Arial,Helvetica,sans-serif;">
-      <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:560px;">
-        <tr>
-          ${photoCell}
-          <td style="vertical-align:top;padding:0;">
-            <p style="margin:0 0 2px;padding:0;font-size:13px;color:#333;line-height:1.5;">Kind regards,</p>
-            ${fields.name ? `<p style="margin:0;padding:0;font-size:13px;font-weight:bold;color:#222;line-height:1.5;">${escapeHtml(fields.name)}</p>` : ""}
-            ${fields.title ? `<p style="margin:2px 0 0;padding:0;font-size:13px;color:#333;line-height:1.5;">${escapeHtml(fields.title)}</p>` : ""}
-          </td>
-        </tr>
-        <tr>
-          <td colspan="2" style="padding:10px 0 8px;">
-            <hr style="border:none;border-top:1px solid #d9d9d9;margin:0;" />
-          </td>
-        </tr>
-        <tr>
-          <td colspan="2" style="padding:0;">
-            <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;">
-              <tr>
-                <td style="vertical-align:top;width:60%;padding:0;">${contactLines}</td>
-                ${websiteCell}
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+      ${inner}
       ${fields.confidentialityNote ? `<p style="margin:16px 0 0;padding:0;font-size:11px;color:#999;line-height:1.5;">${escapeHtml(fields.confidentialityNote)}</p>` : ""}
     </div>
   `.trim();

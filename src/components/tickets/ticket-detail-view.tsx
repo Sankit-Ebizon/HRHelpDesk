@@ -860,7 +860,7 @@ export function TicketDetailView({
                   <Label>Description *</Label>
                   <Textarea name="description" placeholder="What did you work on?" required rows={2} />
                 </div>
-                <Button type="submit" size="sm" disabled={loading}>Add Time Entry</Button>
+                <Button type="submit" className="text-white" size="sm" disabled={loading}>Add Time Entry</Button>
               </form>
             </div>
           </CardContent>
